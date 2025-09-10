@@ -1,7 +1,6 @@
+# QuantEra AI
 # Multimodal-LLM AI Trading Platform
-
-<img width="1024" height="1024" alt="generated-image" src="https://github.com/user-attachments/assets/e8f67816-6b4f-4fe3-ad49-145fb5ab90db" />
- — an ongoing, cutting-edge project aimed at revolutionizing trading within the S&P 500 landscape through the power of specialized Large Language Models (LLMs) and multimodal data analysis.
+an ongoing, cutting-edge project aimed at revolutionizing trading within the S&P 500 landscape through the power of specialized Large Language Models (LLMs) and multimodal data analysis.
 
 ## Project Overview
 
@@ -26,6 +25,10 @@ The diagram above illustrates a high-level view of the platform, featuring multi
 - **Fundamental Data Agent:** Evaluation of company financial health and fundamentals.  
 - **Sentiment Agent:** Market mood assessment through social and media sentiment analysis.  
 - **Risk Management Agent:** Balancing risk and reward by monitoring volatility and systemic threats.
+
+<img width="1024" height="1024" alt="generated-image" src="https://github.com/user-attachments/assets/e8f67816-6b4f-4fe3-ad49-145fb5ab90db" />
+ — 
+
 
 These agents actively collaborate and aggregate findings into a final, adaptive trading signal delivered to the execution engine — balancing speed, precision, and reliability.
 
