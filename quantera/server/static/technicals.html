@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuantEra Technicals Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --page: #14151f;
+      --canvas: #1a1b26;
+      --panel: #1e2030;
+      --panel-soft: #242638;
+      --line: #313449;
+      --ink: #eef2ff;
+      --muted: #9aa4b8;
+      --faint: #697087;
+      --accent: #8b8cf6;
+      --accent-strong: #a5b4fc;
+      --danger: #ef6b73;
+      --price: #e5e7eb;
+      --sma50: #60a5fa;
+      --sma200: #f59e0b;
+      --ema20: #6ee7b7;
+      --rsi: #c084fc;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 13px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(30, 32, 48, 0.96);
+      backdrop-filter: blur(14px);
+    }
+
+    h1 {
+      margin: 0;
+      color: #f8fafc;
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    form {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: min(360px, 48vw);
+    }
+
+    input {
+      width: 100%;
+      min-width: 120px;
+      height: 38px;
+      border: 1px solid #3a3e56;
+      border-radius: 6px;
+      padding: 0 11px;
+      color: var(--ink);
+      font: inherit;
+      text-transform: uppercase;
+      background: #171926;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(139, 140, 246, 0.16);
+    }
+
+    button {
+      height: 38px;
+      border: 0;
+      border-radius: 6px;
+      padding: 0 14px;
+      color: #10121c;
+      background: var(--accent-strong);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.68;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 390px;
+      min-height: calc(100vh - 65px);
+    }
+
+    .workspace {
+      min-width: 0;
+      border-right: 1px solid var(--line);
+      background: var(--canvas);
+    }
+
+    .chart-head,
+    .chart-status,
+    footer {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chart-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      background: rgba(26, 27, 38, 0.9);
+    }
+
+    .chart-title {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .chart-title strong {
+      color: #f8fafc;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .meta,
+    .chart-status,
+    footer {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .chart-stack {
+      position: relative;
+      display: grid;
+      grid-template-rows: minmax(390px, 1fr) 210px;
+      height: calc(100vh - 172px);
+      min-height: 640px;
+    }
+
+    .chart-panel {
+      position: relative;
+      min-height: 0;
+      padding: 16px 18px;
+    }
+
+    .chart-panel + .chart-panel {
+      border-top: 1px solid var(--line);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 16px 18px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      border: 1px dashed rgba(154, 164, 184, 0.32);
+      border-radius: 8px;
+      color: var(--muted);
+      background: rgba(26, 27, 38, 0.82);
+      text-align: center;
+      font-size: 13px;
+      line-height: 1.45;
+      pointer-events: none;
+    }
+
+    .overlay.is-visible {
+      display: flex;
+    }
+
+    aside {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--panel);
+    }
+
+    .panel {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      color: #f8fafc;
+      font-size: 13px;
+      line-height: 1.25;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .error {
+      min-height: 18px;
+      color: var(--danger);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .unavailable-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      min-height: 24px;
+      margin-top: 8px;
+    }
+
+    .unavailable-pill {
+      border: 1px solid rgba(154, 164, 184, 0.24);
+      border-radius: 999px;
+      padding: 4px 8px;
+      color: #cbd5e1;
+      background: rgba(154, 164, 184, 0.08);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .metrics-wrap {
+      overflow: auto;
+      flex: 1;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th,
+    td {
+      padding: 10px 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+      text-align: left;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+
+    td {
+      color: #e5e7eb;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .metric-name {
+      color: #f8fafc;
+      font-weight: 700;
+    }
+
+    .metric-value {
+      margin-top: 4px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .verdict-level {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      border: 1px solid rgba(139, 140, 246, 0.24);
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: #e0e7ff;
+      background: rgba(139, 140, 246, 0.11);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .verdict-text,
+    .provenance {
+      margin-top: 6px;
+      color: #cbd5e1;
+    }
+
+    .provenance {
+      color: var(--muted);
+    }
+
+    @media (max-width: 980px) {
+      header {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      form {
+        min-width: 0;
+        width: 100%;
+      }
+
+      main {
+        display: block;
+      }
+
+      .workspace {
+        border-right: 0;
+      }
+
+      .chart-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .chart-stack {
+        height: auto;
+        min-height: 0;
+        grid-template-rows: 420px 220px;
+      }
+
+      aside {
+        min-height: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>QuantEra Technicals</h1>
+    <form id="ticker-form" autocomplete="off">
+      <input id="ticker-input" name="ticker" value="AAPL" maxlength="10" aria-label="Ticker">
+      <button id="load-button" type="submit">Load</button>
+    </form>
+  </header>
+
+  <main>
+    <section class="workspace" aria-label="Technicals chart">
+      <div class="chart-head">
+        <div class="chart-title">
+          <strong id="chart-symbol">AAPL</strong>
+          <span id="chart-company" class="meta"></span>
+        </div>
+        <div id="chart-meta" class="meta"></div>
+      </div>
+      <div id="chart-status" class="chart-status">Loading AAPL...</div>
+      <div class="chart-stack">
+        <section class="chart-panel" aria-label="Adjusted close and moving averages">
+          <canvas id="price-chart"></canvas>
+          <div id="price-overlay" class="overlay"></div>
+        </section>
+        <section class="chart-panel" aria-label="RSI">
+          <canvas id="rsi-chart"></canvas>
+          <div id="rsi-overlay" class="overlay"></div>
+        </section>
+      </div>
+      <footer>research, not financial advice.</footer>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <div id="status" class="subtle"></div>
+        <div id="error" class="error" role="alert"></div>
+        <div id="unavailable-series" class="unavailable-list" aria-live="polite"></div>
+      </section>
+      <section class="panel metrics-wrap">
+        <h2>Scalars</h2>
+        <table aria-label="Technical scalar verdicts">
+          <thead>
+            <tr>
+              <th style="width: 34%;">Metric</th>
+              <th style="width: 40%;">Verdict</th>
+              <th style="width: 26%;">Provenance</th>
+            </tr>
+          </thead>
+          <tbody id="metrics-body">
+            <tr>
+              <td colspan="3" class="subtle">Loading AAPL...</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    const form = document.getElementById("ticker-form");
+    const input = document.getElementById("ticker-input");
+    const button = document.getElementById("load-button");
+    const statusEl = document.getElementById("status");
+    const errorEl = document.getElementById("error");
+    const chartStatusEl = document.getElementById("chart-status");
+    const chartSymbolEl = document.getElementById("chart-symbol");
+    const chartCompanyEl = document.getElementById("chart-company");
+    const chartMetaEl = document.getElementById("chart-meta");
+    const metricsBodyEl = document.getElementById("metrics-body");
+    const unavailableSeriesEl = document.getElementById("unavailable-series");
+    const priceOverlayEl = document.getElementById("price-overlay");
+    const rsiOverlayEl = document.getElementById("rsi-overlay");
+    let priceChart = null;
+    let rsiChart = null;
+
+    const SERIES = {
+      adj_close: { label: "Adjusted Close", color: "#e5e7eb", width: 1.8 },
+      sma_50: { label: "SMA(50)", color: "#60a5fa", width: 1.4 },
+      sma_200: { label: "SMA(200)", color: "#f59e0b", width: 1.4 },
+      ema_20: { label: "EMA(20)", color: "#6ee7b7", width: 1.4 },
+      rsi_14: { label: "RSI(14)", color: "#c084fc", width: 1.5 }
+    };
+
+    const SCALAR_ROWS = [
+      "price_vs_sma_50",
+      "price_vs_sma_200",
+      "rsi_14",
+      "volatility_30",
+      "return_21d",
+      "return_63d",
+      "return_252d",
+      "latest_volume"
+    ];
+
+    const rsiReferenceLines = {
+      id: "rsiReferenceLines",
+      afterDatasetsDraw(chart) {
+        if (chart.canvas.id !== "rsi-chart") return;
+        const yScale = chart.scales.y;
+        const area = chart.chartArea;
+        const ctx = chart.ctx;
+        [
+          { value: 30, label: "30" },
+          { value: 70, label: "70" }
+        ].forEach((line) => {
+          const y = yScale.getPixelForValue(line.value);
+          ctx.save();
+          ctx.strokeStyle = "rgba(229, 231, 235, 0.28)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([5, 5]);
+          ctx.beginPath();
+          ctx.moveTo(area.left, y);
+          ctx.lineTo(area.right, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = "rgba(229, 231, 235, 0.72)";
+          ctx.font = "11px Inter, system-ui, sans-serif";
+          ctx.fillText(line.label, area.left + 6, y - 6);
+          ctx.restore();
+        });
+      }
+    };
+
+    if (window.Chart) {
+      Chart.register(rsiReferenceLines);
+    }
+
+    const requestedTicker = new URLSearchParams(window.location.search).get("ticker");
+    if (requestedTicker) {
+      input.value = requestedTicker.trim().toUpperCase().slice(0, 10);
+    }
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loadTicker(input.value.trim() || "AAPL");
+    });
+
+    loadTicker(input.value.trim() || "AAPL");
+
+    async function loadTicker(ticker) {
+      const symbol = ticker.toUpperCase();
+      input.value = symbol;
+      button.disabled = true;
+      clearMessages();
+      setLoading(symbol);
+      try {
+        if (!window.Chart) {
+          throw new Error("Chart.js is unavailable.");
+        }
+        const response = await fetch("/api/research/" + encodeURIComponent(symbol));
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.detail?.message || payload.detail?.error || "Request failed");
+        }
+        renderDashboard(payload);
+      } catch (error) {
+        showError(error.message);
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function setLoading(symbol) {
+      chartSymbolEl.textContent = symbol;
+      chartCompanyEl.textContent = "";
+      chartMetaEl.textContent = "";
+      chartStatusEl.textContent = "Loading " + symbol + "...";
+      statusEl.textContent = "Loading " + symbol + "...";
+      metricsBodyEl.innerHTML = '<tr><td colspan="3" class="subtle">Loading ' + escapeHtml(symbol) + "...</td></tr>";
+      unavailableSeriesEl.innerHTML = "";
+      setOverlay(priceOverlayEl, "");
+      setOverlay(rsiOverlayEl, "");
+    }
+
+    function clearMessages() {
+      errorEl.textContent = "";
+    }
+
+    function showError(message) {
+      errorEl.textContent = message;
+      chartStatusEl.textContent = message;
+      statusEl.textContent = "Unable to load research payload.";
+      metricsBodyEl.innerHTML = '<tr><td colspan="3" class="subtle">unavailable</td></tr>';
+      setOverlay(priceOverlayEl, message);
+      setOverlay(rsiOverlayEl, message);
+    }
+
+    function renderDashboard(payload) {
+      const synthesis = payload.synthesis || {};
+      const technicals = synthesis.technicals || {};
+      const symbol = synthesis.ticker || technicals.ticker || input.value.trim().toUpperCase();
+      chartSymbolEl.textContent = symbol;
+      chartCompanyEl.textContent = synthesis.company_name || "";
+      chartMetaEl.textContent = "Generated " + formatDateTime(payload.generated_at || synthesis.generated_at);
+      statusEl.textContent = (payload.cached ? "Cached" : "Fresh") + " - " + formatDateTime(payload.generated_at);
+      chartStatusEl.textContent = "Source values rendered from /api/research/" + symbol;
+      renderCharts(technicals.chart_series || []);
+      renderMetrics(technicals);
+    }
+
+    function renderCharts(chartSeries) {
+      const seriesByName = Object.fromEntries(chartSeries.map((series) => [series.name, series]));
+      const dateLabels = collectDateLabels(seriesByName);
+      const missing = unavailableSeries(seriesByName, ["adj_close", "sma_50", "sma_200", "ema_20", "rsi_14"]);
+      renderUnavailableSeries(missing);
+
+      if (!dateLabels.length || !hasRenderablePoints(seriesByName.adj_close)) {
+        destroyCharts();
+        setOverlay(priceOverlayEl, "adjusted close unavailable");
+        setOverlay(rsiOverlayEl, "RSI(14) unavailable");
+        return;
+      }
+
+      setOverlay(priceOverlayEl, "");
+      setOverlay(rsiOverlayEl, hasRenderablePoints(seriesByName.rsi_14) ? "" : "RSI(14) unavailable");
+      setChartDiagnostics(seriesByName);
+      const baseOptions = chartOptions();
+      renderPriceChart(dateLabels, seriesByName, baseOptions);
+      renderRsiChart(dateLabels, seriesByName, baseOptions);
+    }
+
+    function renderPriceChart(labels, seriesByName, baseOptions) {
+      const datasets = ["adj_close", "sma_50", "sma_200", "ema_20"]
+        .filter((name) => seriesByName[name])
+        .map((name) => datasetFromSeries(seriesByName[name], labels, SERIES[name]));
+      if (priceChart) priceChart.destroy();
+      priceChart = new Chart(document.getElementById("price-chart"), {
+        type: "line",
+        data: { labels, datasets },
+        options: {
+          ...baseOptions,
+          scales: {
+            x: axisOptions("Date", false),
+            y: axisOptions("Price", true)
+          }
+        }
+      });
+    }
+
+    function renderRsiChart(labels, seriesByName, baseOptions) {
+      const datasets = seriesByName.rsi_14
+        ? [datasetFromSeries(seriesByName.rsi_14, labels, SERIES.rsi_14)]
+        : [];
+      if (rsiChart) rsiChart.destroy();
+      rsiChart = new Chart(document.getElementById("rsi-chart"), {
+        type: "line",
+        data: { labels, datasets },
+        options: {
+          ...baseOptions,
+          plugins: {
+            ...baseOptions.plugins,
+            legend: { display: false },
+            tooltip: baseOptions.plugins.tooltip
+          },
+          scales: {
+            x: axisOptions("Date", true),
+            y: {
+              ...axisOptions("RSI", true),
+              min: 0,
+              max: 100
+            }
+          }
+        }
+      });
+    }
+
+    function chartOptions() {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: "index", intersect: false },
+        normalized: true,
+        plugins: {
+          legend: {
+            labels: {
+              color: "#dbe3f7",
+              boxWidth: 13,
+              boxHeight: 13,
+              usePointStyle: true,
+              pointStyle: "line"
+            }
+          },
+          tooltip: {
+            mode: "index",
+            intersect: false,
+            callbacks: {
+              title(items) {
+                return items[0]?.label || "";
+              },
+              label(context) {
+                const value = context.parsed.y;
+                if (value === null || Number.isNaN(value)) {
+                  return context.dataset.label + ": unavailable";
+                }
+                return context.dataset.label + ": " + formatNumber(value);
+              },
+              afterLabel(context) {
+                const point = context.dataset.pointsByDate?.[context.label];
+                if (!point) return "";
+                return "source: " + point.source + " | as of: " + point.as_of;
+              }
+            }
+          }
+        },
+        elements: {
+          point: { radius: 0, hitRadius: 8, hoverRadius: 3 },
+          line: { tension: 0, borderJoinStyle: "round" }
+        }
+      };
+    }
+
+    function axisOptions(title, showTitle) {
+      return {
+        grid: { color: "rgba(148, 163, 184, 0.11)" },
+        border: { color: "rgba(148, 163, 184, 0.22)" },
+        ticks: {
+          color: "#9aa4b8",
+          maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 8
+        },
+        title: {
+          display: showTitle,
+          text: title,
+          color: "#9aa4b8"
+        }
+      };
+    }
+
+    function datasetFromSeries(series, labels, spec) {
+      const pointByDate = Object.fromEntries((series.points || []).map((point) => [point.date, point]));
+      return {
+        label: spec.label,
+        data: labels.map((date) => {
+          const point = pointByDate[date];
+          return point && point.status === "OK" ? point.value : null;
+        }),
+        borderColor: spec.color,
+        backgroundColor: spec.color,
+        borderWidth: spec.width,
+        spanGaps: false,
+        pointsByDate: pointByDate
+      };
+    }
+
+    function collectDateLabels(seriesByName) {
+      const preferred = seriesByName.adj_close || Object.values(seriesByName)[0];
+      return (preferred?.points || []).map((point) => point.date);
+    }
+
+    function hasRenderablePoints(series) {
+      return Boolean(series && (series.points || []).some((point) => point.status === "OK" && point.value !== null));
+    }
+
+    function unavailableSeries(seriesByName, names) {
+      return names
+        .filter((name) => !hasRenderablePoints(seriesByName[name]))
+        .map((name) => {
+          const series = seriesByName[name];
+          const lastNote = [...(series?.points || [])].reverse().find((point) => point.note)?.note;
+          return {
+            label: SERIES[name]?.label || name,
+            note: lastNote || "unavailable"
+          };
+        });
+    }
+
+    function renderUnavailableSeries(items) {
+      unavailableSeriesEl.innerHTML = "";
+      items.forEach((item) => {
+        const pill = document.createElement("span");
+        pill.className = "unavailable-pill";
+        pill.textContent = item.label + " unavailable: " + item.note;
+        unavailableSeriesEl.appendChild(pill);
+      });
+    }
+
+    function renderMetrics(technicals) {
+      const indicators = Object.fromEntries((technicals.indicators || []).map((indicator) => [indicator.name, indicator]));
+      const verdicts = Object.fromEntries((technicals.verdicts || []).map((verdict) => [verdict.indicator_name, verdict]));
+      metricsBodyEl.innerHTML = "";
+      SCALAR_ROWS.forEach((name) => {
+        metricsBodyEl.appendChild(metricRow(name, indicators[name], verdicts[name]));
+      });
+    }
+
+    function setChartDiagnostics(seriesByName) {
+      const priceCanvas = document.getElementById("price-chart");
+      const rsiCanvas = document.getElementById("rsi-chart");
+      [
+        ["adj_close", "latestAdjClose"],
+        ["sma_50", "latestSma50"],
+        ["sma_200", "latestSma200"],
+        ["ema_20", "latestEma20"]
+      ].forEach(([seriesName, attributeName]) => {
+        priceCanvas.dataset[attributeName] = latestOkPointValue(seriesByName[seriesName]);
+      });
+      priceCanvas.dataset.latestDate = latestSeriesDate(seriesByName.adj_close);
+      rsiCanvas.dataset.latestRsi14 = latestOkPointValue(seriesByName.rsi_14);
+      rsiCanvas.dataset.latestDate = latestSeriesDate(seriesByName.rsi_14);
+    }
+
+    function latestOkPointValue(series) {
+      const point = [...(series?.points || [])].reverse().find((item) => item.status === "OK");
+      return point && point.value !== null ? String(point.value) : "";
+    }
+
+    function latestSeriesDate(series) {
+      const point = [...(series?.points || [])].reverse().find((item) => item.status === "OK");
+      return point?.date || "";
+    }
+
+    function metricRow(name, indicator, verdict) {
+      const row = document.createElement("tr");
+      const metricCell = document.createElement("td");
+      const verdictCell = document.createElement("td");
+      const provenanceCell = document.createElement("td");
+
+      const metricName = document.createElement("div");
+      metricName.className = "metric-name";
+      metricName.textContent = indicator?.display_name || name;
+      const metricValue = document.createElement("div");
+      metricValue.className = "metric-value";
+      metricValue.textContent = formatIndicatorValue(name, indicator);
+      metricCell.append(metricName, metricValue);
+
+      const level = document.createElement("span");
+      level.className = "verdict-level";
+      level.textContent = verdict?.level || "UNAVAILABLE";
+      const rationale = document.createElement("div");
+      rationale.className = "verdict-text";
+      rationale.textContent = verdict?.rationale || "unavailable";
+      verdictCell.append(level, rationale);
+
+      const provenance = document.createElement("div");
+      provenance.className = "provenance";
+      provenance.textContent = indicator
+        ? "source: " + indicator.source + " | as of: " + indicator.as_of
+        : "source: unavailable | as of: unavailable";
+      provenanceCell.appendChild(provenance);
+
+      row.append(metricCell, verdictCell, provenanceCell);
+      return row;
+    }
+
+    function formatIndicatorValue(name, indicator) {
+      if (!indicator || indicator.status !== "OK" || indicator.value === null) return "unavailable";
+      if (name.startsWith("return_") || name.startsWith("volatility_") || name.startsWith("price_vs_sma_")) {
+        return formatPercent(indicator.value);
+      }
+      if (name === "latest_volume") {
+        return formatInteger(indicator.value);
+      }
+      return formatNumber(indicator.value);
+    }
+
+    function destroyCharts() {
+      if (priceChart) priceChart.destroy();
+      if (rsiChart) rsiChart.destroy();
+      priceChart = null;
+      rsiChart = null;
+    }
+
+    function setOverlay(element, message) {
+      element.textContent = message;
+      element.classList.toggle("is-visible", Boolean(message));
+    }
+
+    function formatNumber(value) {
+      return Number(value).toLocaleString(undefined, {
+        maximumFractionDigits: 4
+      });
+    }
+
+    function formatPercent(value) {
+      return Number(value).toLocaleString(undefined, {
+        style: "percent",
+        maximumFractionDigits: 2
+      });
+    }
+
+    function formatInteger(value) {
+      return Number(value).toLocaleString(undefined, {
+        maximumFractionDigits: 0
+      });
+    }
+
+    function formatDateTime(value) {
+      if (!value) return "unavailable";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function escapeHtml(value) {
+      const div = document.createElement("div");
+      div.textContent = value;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
