@@ -2322,5 +2322,521 @@
         ]
       }
     ]
+  },
+  "flow": {
+    "title": "How one request runs",
+    "note": "Illustrative run. The entity, dates and numbers are example values from the design spec, not results.",
+    "nodes": [
+      {
+        "id": "req",
+        "label": "Request",
+        "sub": "ticker, as_of, horizon",
+        "kind": "io",
+        "status": "partial",
+        "built": "Today the API takes a ticker. The as_of date and horizon are part of the design."
+      },
+      {
+        "id": "orch",
+        "label": "Orchestrator",
+        "sub": "run_id, entity_id",
+        "kind": "graph",
+        "status": "planned",
+        "built": "Designed. Today one sequential Python function runs the lenses."
+      },
+      {
+        "id": "a_fund",
+        "label": "Fundamentals",
+        "sub": "growth, margins, ROIC",
+        "kind": "agent",
+        "status": "partial",
+        "built": "Runs today as the v0 fundamentals lens; 9 of 14 metrics produce values."
+      },
+      {
+        "id": "a_tech",
+        "label": "Technicals",
+        "sub": "momentum, MAs, vol",
+        "kind": "agent",
+        "status": "implemented",
+        "built": "Runs today as the v0 technicals lens."
+      },
+      {
+        "id": "a_news",
+        "label": "News & sentiment",
+        "sub": "events, tone",
+        "kind": "agent",
+        "status": "implemented",
+        "built": "Runs today as the v0 news lens."
+      },
+      {
+        "id": "a_val",
+        "label": "Valuation",
+        "sub": "DCF, multiples",
+        "kind": "agent",
+        "status": "planned",
+        "built": "Designed."
+      },
+      {
+        "id": "a_macro",
+        "label": "Macro",
+        "sub": "rates, inflation",
+        "kind": "agent",
+        "status": "planned",
+        "built": "Designed."
+      },
+      {
+        "id": "a_risk",
+        "label": "Risk",
+        "sub": "VaR, ES, drawdown",
+        "kind": "agent",
+        "status": "planned",
+        "built": "Designed."
+      },
+      {
+        "id": "a_own",
+        "label": "Ownership",
+        "sub": "13F flows",
+        "kind": "agent",
+        "status": "planned",
+        "built": "Designed."
+      },
+      {
+        "id": "a_port",
+        "label": "Portfolio",
+        "sub": "sizing, caps",
+        "kind": "agent",
+        "status": "planned",
+        "built": "Designed."
+      },
+      {
+        "id": "mcp",
+        "label": "MCP server",
+        "sub": "as_of required on every tool",
+        "kind": "gate",
+        "status": "planned",
+        "built": "Designed. Today the lenses read yfinance and Finnhub directly."
+      },
+      {
+        "id": "store",
+        "label": "Bitemporal point-in-time store",
+        "sub": "SEC XBRL, prices, news, 13F, ALFRED vintages",
+        "kind": "data",
+        "status": "planned",
+        "built": "Designed. Today data comes from yfinance and Finnhub with a file cache."
+      },
+      {
+        "id": "check",
+        "label": "Evidence checker",
+        "sub": "exists, timing, recompute",
+        "kind": "code",
+        "status": "partial",
+        "built": "Partly built: today's guards reject untraceable numbers, unretrieved links and advice language."
+      },
+      {
+        "id": "chief",
+        "label": "Chief analyst",
+        "sub": "verified claims only",
+        "kind": "agent",
+        "status": "partial",
+        "built": "Partly built: today synthesis runs in code and a guarded model writes the brief; there is no probability yet."
+      },
+      {
+        "id": "calib",
+        "label": "Calibrator",
+        "sub": "isotonic or Platt, in code",
+        "kind": "code",
+        "status": "planned",
+        "built": "Designed."
+      },
+      {
+        "id": "out",
+        "label": "Versioned record",
+        "sub": "snapshot, prompt, model, code",
+        "kind": "io",
+        "status": "planned",
+        "built": "Designed. Today the API returns JSON cached for 2 hours."
+      },
+      {
+        "id": "eval",
+        "label": "Evaluation harness",
+        "sub": "Brier, log loss, baselines",
+        "kind": "code",
+        "status": "planned",
+        "built": "Designed."
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_req",
+        "source": "req",
+        "target": "orch"
+      },
+      {
+        "id": "f_fund",
+        "source": "orch",
+        "target": "a_fund",
+        "group": "fanout"
+      },
+      {
+        "id": "f_tech",
+        "source": "orch",
+        "target": "a_tech",
+        "group": "fanout"
+      },
+      {
+        "id": "f_news",
+        "source": "orch",
+        "target": "a_news",
+        "group": "fanout"
+      },
+      {
+        "id": "f_val",
+        "source": "orch",
+        "target": "a_val",
+        "group": "fanout"
+      },
+      {
+        "id": "f_macro",
+        "source": "orch",
+        "target": "a_macro",
+        "group": "fanout"
+      },
+      {
+        "id": "f_risk",
+        "source": "orch",
+        "target": "a_risk",
+        "group": "fanout"
+      },
+      {
+        "id": "f_own",
+        "source": "orch",
+        "target": "a_own",
+        "group": "fanout"
+      },
+      {
+        "id": "f_port",
+        "source": "orch",
+        "target": "a_port",
+        "group": "fanout"
+      },
+      {
+        "id": "m_gate",
+        "source": "mcp",
+        "target": "store",
+        "group": "read"
+      },
+      {
+        "id": "c_fund",
+        "source": "a_fund",
+        "target": "check",
+        "group": "fanin"
+      },
+      {
+        "id": "c_tech",
+        "source": "a_tech",
+        "target": "check",
+        "group": "fanin"
+      },
+      {
+        "id": "c_news",
+        "source": "a_news",
+        "target": "check",
+        "group": "fanin"
+      },
+      {
+        "id": "c_val",
+        "source": "a_val",
+        "target": "check",
+        "group": "fanin"
+      },
+      {
+        "id": "c_macro",
+        "source": "a_macro",
+        "target": "check",
+        "group": "fanin"
+      },
+      {
+        "id": "c_risk",
+        "source": "a_risk",
+        "target": "check",
+        "group": "fanin"
+      },
+      {
+        "id": "c_own",
+        "source": "a_own",
+        "target": "check",
+        "group": "fanin"
+      },
+      {
+        "id": "c_port",
+        "source": "a_port",
+        "target": "check",
+        "group": "fanin"
+      },
+      {
+        "id": "r_loop",
+        "source": "check",
+        "target": "a_val",
+        "style": "fail"
+      },
+      {
+        "id": "e_chief",
+        "source": "check",
+        "target": "chief"
+      },
+      {
+        "id": "e_calib",
+        "source": "chief",
+        "target": "calib"
+      },
+      {
+        "id": "e_out",
+        "source": "calib",
+        "target": "out"
+      },
+      {
+        "id": "e_eval",
+        "source": "out",
+        "target": "eval",
+        "style": "later"
+      }
+    ],
+    "state_keys": [
+      "request",
+      "run_id",
+      "entity_id",
+      "agents",
+      "claims",
+      "verdicts",
+      "revisions",
+      "thesis",
+      "probability",
+      "record",
+      "score"
+    ],
+    "steps": [
+      {
+        "title": "A request arrives",
+        "nodes": [
+          "req"
+        ],
+        "edges": [],
+        "body": "A research question enters the graph as structured input: which company, as of which date, over which horizon.",
+        "graph": "The graph's input is a typed ResearchState, not a free-form prompt.",
+        "state": {
+          "request": [
+            "Analyze ENT_000412 as of 2025-03-01, 63 trading days",
+            "api"
+          ]
+        }
+      },
+      {
+        "title": "The orchestrator plans the run",
+        "nodes": [
+          "orch"
+        ],
+        "edges": [
+          "e_req"
+        ],
+        "body": "It creates a run_id and resolves the ticker to a permanent entity_id, so a ticker change such as FB to META is still one company.",
+        "graph": "The START node writes run metadata into shared state.",
+        "state": {
+          "run_id": [
+            "run_2025-03-01_a91c",
+            "orchestrator"
+          ],
+          "entity_id": [
+            "ENT_000412 (CIK-backed)",
+            "orchestrator"
+          ]
+        }
+      },
+      {
+        "title": "Eight agents start at once",
+        "nodes": [
+          "orch",
+          "a_fund",
+          "a_tech",
+          "a_news",
+          "a_val",
+          "a_macro",
+          "a_risk",
+          "a_own",
+          "a_port"
+        ],
+        "edges": [
+          "f_fund",
+          "f_tech",
+          "f_news",
+          "f_val",
+          "f_macro",
+          "f_risk",
+          "f_own",
+          "f_port"
+        ],
+        "body": "Each specialist gets only the data and tools for its domain. The news agent cannot run a DCF; the valuation agent cannot read headlines.",
+        "graph": "Send fans one node out into eight parallel branches.",
+        "state": {
+          "agents": [
+            "8 running in parallel",
+            "orchestrator"
+          ]
+        }
+      },
+      {
+        "title": "Every read goes through the as-of gate",
+        "nodes": [
+          "a_fund",
+          "a_tech",
+          "a_news",
+          "a_val",
+          "a_macro",
+          "a_risk",
+          "a_own",
+          "a_port",
+          "mcp",
+          "store"
+        ],
+        "edges": [
+          "m_gate"
+        ],
+        "reads": true,
+        "body": "Every tool requires an as_of date, and the server returns only facts whose tradable_date is on or before it. For example, get_fact(ENT_000412, revenue, as_of=2025-03-01) cannot see a 10-K filed later. No agent can request the future, whatever its prompt says.",
+        "graph": "Tools are bound per agent. The time filter lives in the server, outside the model's control.",
+        "state": {}
+      },
+      {
+        "title": "The model reasons, code computes",
+        "nodes": [
+          "a_fund",
+          "mcp"
+        ],
+        "edges": [],
+        "reads": [
+          "a_fund"
+        ],
+        "body": "The fundamentals agent picks yoy_growth and the facts to feed it; Python returns 0.081. The claim it emits cites its fact_ids and filing accession numbers and must validate against a Pydantic schema.",
+        "graph": "Parallel branches append to claims through a reducer, so no branch overwrites another.",
+        "state": {
+          "claims": [
+            "fundamentals: FY2024 revenue +8.1% YoY, cites fact_9912 and fact_8820",
+            "each agent"
+          ]
+        }
+      },
+      {
+        "title": "Fan-in at the evidence checker",
+        "nodes": [
+          "a_fund",
+          "a_tech",
+          "a_news",
+          "a_val",
+          "a_macro",
+          "a_risk",
+          "a_own",
+          "a_port",
+          "check"
+        ],
+        "edges": [
+          "c_fund",
+          "c_tech",
+          "c_news",
+          "c_val",
+          "c_macro",
+          "c_risk",
+          "c_own",
+          "c_port"
+        ],
+        "body": "A separate checker confirms each cited fact exists, was tradable before as_of, recomputes the value within tolerance, and checks units and periods. It sees the claim and its sources, never the author's reasoning.",
+        "graph": "A join waits for every branch, or a timeout, before the checker runs.",
+        "state": {
+          "verdicts": [
+            "existence, temporal, recompute, units: pass on most claims",
+            "checker"
+          ]
+        }
+      },
+      {
+        "title": "One chance to fix a failed claim",
+        "nodes": [
+          "check",
+          "a_val"
+        ],
+        "edges": [
+          "r_loop"
+        ],
+        "body": "A valuation claim fails recompute. It goes back to its agent once, with the reason code. If it fails again it is dropped and logged, never quietly kept.",
+        "graph": "A conditional edge routes on the verdict; a revision counter in state bounds the loop to one pass.",
+        "state": {
+          "revisions": [
+            "valuation: 1 claim returned, fixed on retry",
+            "checker"
+          ]
+        }
+      },
+      {
+        "title": "The chief analyst decides",
+        "nodes": [
+          "check",
+          "chief"
+        ],
+        "edges": [
+          "e_chief"
+        ],
+        "body": "It reads verified claims only, weights agents by past calibration, and states disagreements, such as expensive valuation against strong momentum, instead of voting them away.",
+        "graph": "A single synthesis node reads the merged, verified state.",
+        "state": {
+          "thesis": [
+            "cites claim_ids; disagreements stated",
+            "chief analyst"
+          ],
+          "probability": [
+            "0.58 raw, P(outperform sector ETF)",
+            "chief analyst"
+          ]
+        }
+      },
+      {
+        "title": "Calibrate, then record everything",
+        "nodes": [
+          "chief",
+          "calib",
+          "out"
+        ],
+        "edges": [
+          "e_calib",
+          "e_out"
+        ],
+        "body": "A calibrator fitted on past walk-forward folds adjusts the probability in code. The record stores the data snapshot, prompt version, model ID and code commit, so the run can be reproduced exactly.",
+        "graph": "END: the final state is written as the versioned record.",
+        "state": {
+          "probability": [
+            "0.55 calibrated",
+            "calibrator"
+          ],
+          "record": [
+            "data snapshot, prompt v3, model ID, commit",
+            "record"
+          ]
+        }
+      },
+      {
+        "title": "63 trading days later",
+        "nodes": [
+          "out",
+          "eval"
+        ],
+        "edges": [
+          "e_eval"
+        ],
+        "body": "When the realized outcome arrives, the harness scores the forecast with Brier score and log loss, against base-rate, calculation-only and single-agent baselines. If the agents do not beat them, that is the result reported.",
+        "graph": "Outside the graph: evaluation runs on stored records, never inside a live run.",
+        "state": {
+          "score": [
+            "Brier and log loss vs 3 baselines",
+            "evaluation"
+          ]
+        }
+      }
+    ]
   }
 }

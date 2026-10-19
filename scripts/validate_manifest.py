@@ -87,6 +87,29 @@ def main() -> int:
                 if ref not in id_set:
                     problems.append(f"roadmap '{stage['title']}': unknown component {ref}")
 
+    flow = m.get("flow")
+    if flow:
+        flow_ids = {n["id"] for n in flow["nodes"]}
+        edge_ids = {e["id"] for e in flow["edges"]}
+        for n in flow["nodes"]:
+            if n["status"] not in STATUSES:
+                problems.append(f"flow node {n['id']}: unknown status {n['status']}")
+        for e in flow["edges"]:
+            if e["source"] not in flow_ids or e["target"] not in flow_ids:
+                problems.append(f"flow edge {e['id']}: unknown endpoint")
+        for i, step in enumerate(flow["steps"], 1):
+            for node_id in step["nodes"]:
+                if node_id not in flow_ids:
+                    problems.append(f"flow step {i}: unknown node {node_id}")
+            for edge_id in step["edges"]:
+                if edge_id not in edge_ids:
+                    problems.append(f"flow step {i}: unknown edge {edge_id}")
+            for key in step.get("state", {}):
+                if key not in flow["state_keys"]:
+                    problems.append(f"flow step {i}: unknown state key {key}")
+        if next((n for n in flow["nodes"] if n["id"] == "orch"), {}).get("status") != "planned":
+            problems.append("flow: the LangGraph orchestrator must stay 'planned' until it exists in code")
+
     checked = 0
     for n in m["nodes"]:
         for path in n["files"]:
