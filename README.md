@@ -2,7 +2,7 @@
 
 An equity research system where Python computes every number and a language model only narrates them. Every model output is checked against the data it was given; when a check fails, a deterministic template replaces it.
 
-**[Explore the interactive architecture →](https://karan-patel11.github.io/quantera-ai/)**
+**[Explore the interactive architecture →](https://karan-patel11.github.io/quantera-ai/)** 
 
 The architecture page was drawn by reading the source code, not the old README. Each component is marked **implemented**, **partial** or **planned**, and links to the exact files it lives in.
 
