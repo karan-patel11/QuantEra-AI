@@ -1,0 +1,2326 @@
+{
+  "meta": {
+    "project": "QuantEra Research Lab",
+    "repo": "https://github.com/karan-patel11/quantera-ai",
+    "audited_commit": "ea6e9ad",
+    "audited_on": "2026-10-19",
+    "method": "Statuses come from reading the source under quantera/ and running the unit suite (90 passed, 5 live-service integration tests deselected). README claims were not counted as evidence.",
+    "audited_sha": "ea6e9ad1903ac9e35247f67df031e126343d3f70",
+    "archive_branch": "archive/v0-code"
+  },
+  "statuses": {
+    "implemented": {
+      "label": "Implemented",
+      "glyph": "●",
+      "note": "Code exists, is on the request path, and has unit tests."
+    },
+    "partial": {
+      "label": "Partial",
+      "glyph": "◐",
+      "note": "Code exists but part of it cannot run or always returns unavailable."
+    },
+    "planned": {
+      "label": "Planned",
+      "glyph": "○",
+      "note": "Not in the code. Shown so the roadmap is explicit, never as a capability."
+    }
+  },
+  "kinds": {
+    "source": "External source",
+    "data": "Data contract or ingestion",
+    "storage": "Storage",
+    "compute": "Deterministic computation",
+    "llm": "LLM call (bounded)",
+    "guard": "Guard or fallback",
+    "orchestration": "Orchestration",
+    "delivery": "API or interface",
+    "eval": "Evaluation"
+  },
+  "layers": [
+    {
+      "id": "sources",
+      "label": "External sources",
+      "column": 0
+    },
+    {
+      "id": "ingest",
+      "label": "Ingestion & contracts",
+      "column": 1
+    },
+    {
+      "id": "storage",
+      "label": "Storage",
+      "column": 2
+    },
+    {
+      "id": "lenses",
+      "label": "Research lenses",
+      "column": 3
+    },
+    {
+      "id": "synthesis",
+      "label": "Orchestration",
+      "column": 4
+    },
+    {
+      "id": "llm",
+      "label": "Bounded LLM tasks",
+      "column": 5,
+      "boundary": true
+    },
+    {
+      "id": "guards",
+      "label": "Guards & fallback",
+      "column": 6
+    },
+    {
+      "id": "delivery",
+      "label": "Delivery",
+      "column": 7
+    },
+    {
+      "id": "eval",
+      "label": "Evaluation",
+      "band": "bottom",
+      "column": 1
+    }
+  ],
+  "nodes": [
+    {
+      "id": "src_yf",
+      "label": "yfinance",
+      "layer": "sources",
+      "kind": "source",
+      "status": "implemented",
+      "summary": "Free Yahoo Finance wrapper. The only source of financial statements and prices today.",
+      "does": [
+        "Annual income statement, balance sheet and cash-flow statement",
+        "Market price and market cap from ticker info",
+        "Daily OHLCV with Adj Close (auto_adjust=False), 504-day default lookback"
+      ],
+      "inputs": [
+        "Ticker symbol"
+      ],
+      "outputs": [
+        "pandas statements and price rows, mapped by the adapter"
+      ],
+      "tech": [
+        "yfinance"
+      ],
+      "files": [
+        "quantera/datasource/yfinance_source.py"
+      ],
+      "failure": "Adapter exceptions propagate to the lens; synthesize() catches them, drops that lens and adds a data note.",
+      "limits": [
+        "Unofficial API with no rate-limit handling or retry in code",
+        "Statement dates are fiscal period ends, not filing publication dates, so data is not point-in-time"
+      ]
+    },
+    {
+      "id": "src_fh_news",
+      "label": "Finnhub company news",
+      "layer": "sources",
+      "kind": "source",
+      "status": "implemented",
+      "summary": "REST company-news endpoint, called with urllib and the NEWS_API_KEY token.",
+      "does": [
+        "GET /api/v1/company-news for a 14-day window",
+        "Maps each article to NewsItem with source, URL, published_at and retrieved_at"
+      ],
+      "inputs": [
+        "Ticker",
+        "Date window",
+        "NEWS_API_KEY"
+      ],
+      "outputs": [
+        "NewsItem list"
+      ],
+      "tech": [
+        "Finnhub REST",
+        "urllib"
+      ],
+      "files": [
+        "quantera/news/finnhub_source.py",
+        "quantera/news/base.py"
+      ],
+      "failure": "HTTP, network and JSON errors raise NewsError; the news lens then returns overall tone NO_DATA instead of failing the request.",
+      "limits": [
+        "No retry or backoff on 429s",
+        "Free-tier coverage limits which outlets appear"
+      ]
+    },
+    {
+      "id": "src_fh_peers",
+      "label": "Finnhub peers",
+      "layer": "sources",
+      "kind": "source",
+      "status": "implemented",
+      "summary": "Peer tickers for the sector cluster in the knowledge graph.",
+      "does": [
+        "GET /api/v1/stock/peers",
+        "Removes the requested ticker and cleans the list"
+      ],
+      "inputs": [
+        "Ticker"
+      ],
+      "outputs": [
+        "Peer ticker list, cached for 7 days"
+      ],
+      "tech": [
+        "Finnhub REST"
+      ],
+      "files": [
+        "quantera/news/finnhub_source.py"
+      ],
+      "failure": "Called directly by the API route; an exception becomes HTTP 502 for the whole request.",
+      "limits": [
+        "Peers are only displayed; no lens compares the company against them"
+      ]
+    },
+    {
+      "id": "src_sec_ref",
+      "label": "SEC 10-K reference values",
+      "layer": "sources",
+      "kind": "source",
+      "status": "implemented",
+      "summary": "Figures copied by hand from EDGAR filings, each entry carrying its filing URL. Ground truth for evaluation only.",
+      "does": [
+        "Revenue, net income and total assets per company",
+        "verified_by_human flag gates whether a ticker counts"
+      ],
+      "inputs": [
+        "10-K documents on SEC EDGAR"
+      ],
+      "outputs": [
+        "Reference facts for the validation harness"
+      ],
+      "tech": [
+        "Python dict"
+      ],
+      "files": [
+        "quantera/validation/reference_data.py"
+      ],
+      "failure": "Unverified or incomplete entries are skipped and listed, never scored.",
+      "limits": [
+        "Not an integration: nothing is fetched from EDGAR at runtime",
+        "8 of 15 listed tickers are verified"
+      ]
+    },
+    {
+      "id": "src_edgar_api",
+      "label": "SEC EDGAR / XBRL API",
+      "layer": "sources",
+      "kind": "source",
+      "status": "planned",
+      "summary": "Live company-facts ingestion. Would supply accession numbers and filing dates.",
+      "does": [
+        "Filing-dated fundamentals that make point-in-time alignment possible"
+      ],
+      "inputs": [
+        "CIK"
+      ],
+      "outputs": [
+        "Company facts with filed dates"
+      ],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "No code, dependency or configuration exists for it"
+      ]
+    },
+    {
+      "id": "src_13f",
+      "label": "SEC 13F holdings",
+      "layer": "sources",
+      "kind": "source",
+      "status": "planned",
+      "summary": "Institutional holdings data for a future ownership lens.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "No code exists"
+      ]
+    },
+    {
+      "id": "src_macro",
+      "label": "Macroeconomic series",
+      "layer": "sources",
+      "kind": "source",
+      "status": "planned",
+      "summary": "Rates, inflation and growth series for a future macro lens.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "No code exists. The current global-links step reasons only over company news text."
+      ]
+    },
+    {
+      "id": "ing_yf_adapter",
+      "label": "YFinanceSource adapter",
+      "layer": "ingest",
+      "kind": "data",
+      "status": "implemented",
+      "summary": "Implements the DataSource interface and maps yfinance rows onto the fixed internal shape.",
+      "does": [
+        "Tries alternate statement attribute names",
+        "Builds one Financials per fiscal column",
+        "Marks every absent line item as missing instead of zero"
+      ],
+      "inputs": [
+        "yfinance statements, info, history"
+      ],
+      "outputs": [
+        "FinancialsByPeriod",
+        "PriceHistory"
+      ],
+      "tech": [
+        "yfinance",
+        "Pydantic"
+      ],
+      "files": [
+        "quantera/datasource/base.py",
+        "quantera/datasource/yfinance_source.py"
+      ],
+      "failure": "Raises a typed data-source error that the caller turns into a skipped lens.",
+      "limits": [
+        "Only one adapter exists; the interface is ready for a second"
+      ]
+    },
+    {
+      "id": "ing_provider",
+      "label": "DataProvider",
+      "layer": "ingest",
+      "kind": "data",
+      "status": "implemented",
+      "summary": "The single entry point lenses use for data: cache first, then fetch, normalize and validate.",
+      "does": [
+        "get_financials, get_financials_history, get_price_history",
+        "Read-through TTL cache per ticker"
+      ],
+      "inputs": [
+        "Ticker",
+        "A DataSource (defaults to yfinance)"
+      ],
+      "outputs": [
+        "Validated Financials and PriceHistory"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/provider.py"
+      ],
+      "failure": "No periods available raises ValueError, which drops the fundamentals lens with a data note.",
+      "limits": []
+    },
+    {
+      "id": "ing_normalize",
+      "label": "Normalization & sanity checks",
+      "layer": "ingest",
+      "kind": "compute",
+      "status": "implemented",
+      "summary": "Pure functions applied to every fetched record before it is cached.",
+      "does": [
+        "Per-source monetary multipliers (yfinance = 1.0)",
+        "Warnings for negative assets, debt, cash or shares",
+        "Checks assets ≈ liabilities + equity within 2%"
+      ],
+      "inputs": [
+        "Raw contract models"
+      ],
+      "outputs": [
+        "Normalized models with sanity warnings attached"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/normalize.py"
+      ],
+      "failure": "Problems become warnings on the record, never silent corrections.",
+      "limits": [
+        "No currency conversion; values stay in the reporting currency"
+      ]
+    },
+    {
+      "id": "ing_contracts",
+      "label": "Pydantic data contracts",
+      "layer": "ingest",
+      "kind": "data",
+      "status": "implemented",
+      "summary": "Every figure is a FieldValue carrying value, is_present, source and as_of. Missing can never be stored as zero.",
+      "does": [
+        "Financials with 17 line items",
+        "FinancialsByPeriod across fiscal years",
+        "PriceBar / PriceHistory with adjusted close",
+        "A validator rejects value=None with is_present=True and the reverse"
+      ],
+      "inputs": [
+        "Adapter output"
+      ],
+      "outputs": [
+        "Typed models consumed by every lens"
+      ],
+      "tech": [
+        "Pydantic v2"
+      ],
+      "files": [
+        "quantera/models.py"
+      ],
+      "failure": "Invalid shapes fail validation at construction time.",
+      "limits": [
+        "No ebitda or interest_expense field, which leaves two ratios permanently unavailable",
+        "as_of is a period or fetch date, not a filing publication timestamp"
+      ]
+    },
+    {
+      "id": "ing_news",
+      "label": "News ingestion",
+      "layer": "ingest",
+      "kind": "data",
+      "status": "implemented",
+      "summary": "Source gate and de-duplication applied before any article can reach a model.",
+      "does": [
+        "Allowlist of 10 domains and 14 outlet names",
+        "Dedupe by normalized URL (utm_ stripped) and headline similarity ≥ 0.92",
+        "Re-applies the allowlist to cached results",
+        "Records items_considered and items_after_whitelist"
+      ],
+      "inputs": [
+        "Finnhub NewsItems"
+      ],
+      "outputs": [
+        "IngestedNews sorted newest first"
+      ],
+      "tech": [
+        "difflib",
+        "Pydantic"
+      ],
+      "files": [
+        "quantera/news/ingest.py",
+        "quantera/news/whitelist.py",
+        "quantera/config.py"
+      ],
+      "failure": "An empty result flows through as NO_DATA tone.",
+      "limits": [
+        "Allowlist is static configuration"
+      ]
+    },
+    {
+      "id": "ing_pit",
+      "label": "Point-in-time alignment",
+      "layer": "ingest",
+      "kind": "data",
+      "status": "planned",
+      "summary": "Select only facts that were public on the analysis date, using filing dates.",
+      "does": [
+        "Prevents look-ahead bias if historical analysis or backtesting is added"
+      ],
+      "inputs": [
+        "Filing-dated facts"
+      ],
+      "outputs": [
+        "As-of-date snapshots"
+      ],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "Requires a filing-dated source such as EDGAR company facts first"
+      ]
+    },
+    {
+      "id": "st_cache",
+      "label": "File TTL cache",
+      "layer": "storage",
+      "kind": "storage",
+      "status": "implemented",
+      "summary": "JSON files keyed by a SHA-256 of the cache key, written atomically via a temp file and replace.",
+      "does": [
+        "Fundamentals 24 h, prices 4 h, news 2 h, peers 7 d",
+        "Full research responses 2 h under the versioned prefix phase5v1",
+        "All TTLs overridable by environment variable"
+      ],
+      "inputs": [
+        "Provider, news ingestion and API writes"
+      ],
+      "outputs": [
+        "Cached payloads or a miss"
+      ],
+      "tech": [
+        "Local filesystem"
+      ],
+      "files": [
+        "quantera/cache.py",
+        "quantera/config.py"
+      ],
+      "failure": "Corrupt or expired entries read as a miss.",
+      "limits": [
+        "Single machine, no eviction or size cap",
+        "Version prefix must be bumped by hand when the response shape changes"
+      ]
+    },
+    {
+      "id": "st_refdata",
+      "label": "Validation reference data",
+      "layer": "storage",
+      "kind": "storage",
+      "status": "implemented",
+      "summary": "Checked-in ground truth for the SEC and price harnesses.",
+      "does": [
+        "15 fundamentals tickers, 8 marked verified_by_human",
+        "Price spot-check templates"
+      ],
+      "inputs": [
+        "Hand entry from filings"
+      ],
+      "outputs": [
+        "Reference records"
+      ],
+      "tech": [
+        "Python modules"
+      ],
+      "files": [
+        "quantera/validation/reference_data.py",
+        "quantera/validation/price_reference.py"
+      ],
+      "failure": "Unverified entries are excluded by the harness.",
+      "limits": [
+        "Every price spot-check entry is still unverified, so price validation runs structural checks only"
+      ]
+    },
+    {
+      "id": "st_vector",
+      "label": "Vector store",
+      "layer": "storage",
+      "kind": "storage",
+      "status": "planned",
+      "summary": "Deliberately deferred until retrieval evaluation shows keyword and recency ranking misses evidence.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "No embedding model or store in dependencies"
+      ]
+    },
+    {
+      "id": "ln_fund",
+      "label": "Fundamentals lens",
+      "layer": "lenses",
+      "kind": "compute",
+      "status": "partial",
+      "summary": "14 metrics in four categories, each turned into a STRONG / NEUTRAL / WEAK / UNAVAILABLE verdict by fixed rules.",
+      "does": [
+        "Valuation: P/E, P/B, P/S, EV/EBITDA",
+        "Profitability: gross margin, net margin, ROE, ROA",
+        "Health: debt/equity, current ratio, interest coverage",
+        "Growth: revenue, earnings, FCF trend",
+        "Absolute thresholds plus hand-entered sector medians for 7 sectors"
+      ],
+      "inputs": [
+        "Latest Financials",
+        "Sector"
+      ],
+      "outputs": [
+        "FundamentalsResult with metrics, verdicts and rationale"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/lenses/fundamentals/lens.py",
+        "quantera/lenses/fundamentals/ratios.py",
+        "quantera/lenses/fundamentals/thresholds.py",
+        "quantera/lenses/fundamentals/verdicts.py"
+      ],
+      "failure": "Any missing input marks that metric UNAVAILABLE with the missing field named.",
+      "limits": [
+        "Only 9 of 14 metrics can produce a value",
+        "EV/EBITDA and interest coverage always return UNAVAILABLE: ebitda and interest_expense are not in the contract",
+        "All 3 growth metrics are hard-coded UNAVAILABLE even though multi-year history is already fetched",
+        "Thresholds are coarse defaults, documented in code as needing refinement"
+      ]
+    },
+    {
+      "id": "ln_tech",
+      "label": "Technicals lens",
+      "layer": "lenses",
+      "kind": "compute",
+      "status": "implemented",
+      "summary": "12 indicators computed on adjusted close, with descriptive verdicts only.",
+      "does": [
+        "SMA 50 / 200, EMA 20, RSI 14 (Wilder smoothing)",
+        "Price vs SMA 50 / 200 with a ±1% neutral band",
+        "30-day annualized volatility",
+        "21, 63 and 252 trading-day returns",
+        "30-day average and latest volume",
+        "Chart series for the dashboard"
+      ],
+      "inputs": [
+        "PriceHistory"
+      ],
+      "outputs": [
+        "TechnicalsResult"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/lenses/technicals/lens.py",
+        "quantera/lenses/technicals/indicators.py",
+        "quantera/lenses/technicals/thresholds.py",
+        "quantera/lenses/technicals/verdicts.py"
+      ],
+      "failure": "Too few bars for a window returns that indicator UNAVAILABLE.",
+      "limits": [
+        "RSI bands 30 / 70 are conventional descriptions, not signals"
+      ]
+    },
+    {
+      "id": "ln_news",
+      "label": "News & sentiment lens",
+      "layer": "lenses",
+      "kind": "compute",
+      "status": "implemented",
+      "summary": "Deterministic retrieval and aggregation around a per-article model classification.",
+      "does": [
+        "Ranks articles by recency (linear over 30 days) + Finnhub relevance + ticker keyword match, keeps top 8",
+        "Sends each article to the sentiment classifier",
+        "Aggregates tone in code: confidence-weighted, MIXED when both sides differ by < 0.25"
+      ],
+      "inputs": [
+        "IngestedNews"
+      ],
+      "outputs": [
+        "NewsSentimentResult: item sentiments, overall tone, sources, global links"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/lenses/news_sentiment/lens.py",
+        "quantera/lenses/news_sentiment/retrieve.py",
+        "quantera/lenses/news_sentiment/summarize.py"
+      ],
+      "failure": "NewsError produces an empty NO_DATA result rather than an exception.",
+      "limits": [
+        "Company-name keyword matching exists in retrieve.py but the lens never passes a company name",
+        "Classifier calls run one after another, up to 8 per request"
+      ]
+    },
+    {
+      "id": "ag_valuation",
+      "label": "Valuation lens (DCF, WACC)",
+      "layer": "lenses",
+      "kind": "compute",
+      "status": "planned",
+      "summary": "Intrinsic valuation: FCFF / FCFE, WACC, terminal value, sensitivity tables.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "Today valuation means four multiples inside the fundamentals lens"
+      ]
+    },
+    {
+      "id": "ag_risk",
+      "label": "Risk lens",
+      "layer": "lenses",
+      "kind": "compute",
+      "status": "planned",
+      "summary": "EWMA volatility, VaR, expected shortfall, drawdowns, stress tests.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "Only 30-day volatility exists, inside the technicals lens"
+      ]
+    },
+    {
+      "id": "ag_macro",
+      "label": "Macro lens",
+      "layer": "lenses",
+      "kind": "compute",
+      "status": "planned",
+      "summary": "Rates, inflation and growth context from macro series.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": []
+    },
+    {
+      "id": "ag_ownership",
+      "label": "Institutional ownership lens",
+      "layer": "lenses",
+      "kind": "compute",
+      "status": "planned",
+      "summary": "Holder concentration and quarter-over-quarter changes from 13F filings.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": []
+    },
+    {
+      "id": "ag_portfolio",
+      "label": "Portfolio lens",
+      "layer": "lenses",
+      "kind": "compute",
+      "status": "planned",
+      "summary": "Multi-ticker exposure and correlation analysis.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "The API accepts one ticker per request"
+      ]
+    },
+    {
+      "id": "sy_orch",
+      "label": "synthesize() orchestrator",
+      "layer": "synthesis",
+      "kind": "orchestration",
+      "status": "implemented",
+      "summary": "Plain Python function that runs the three lenses in sequence and assembles the result.",
+      "does": [
+        "Fundamentals, then technicals, then news, each in its own try/except",
+        "Turns per-lens explanations off; one brief is written at the end",
+        "Collects availability notes for every UNAVAILABLE verdict",
+        "Runs disagreement rules, then the guarded narrative"
+      ],
+      "inputs": [
+        "Ticker",
+        "Optional injected lenses and LLM client (used by tests)"
+      ],
+      "outputs": [
+        "SynthesisResult"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/synthesis/synthesize.py"
+      ],
+      "failure": "A failing lens becomes None plus a data note; the other lenses still return.",
+      "limits": [
+        "Sequential, not parallel",
+        "No LangGraph: the README describes it as in development, and no langgraph dependency or import exists"
+      ]
+    },
+    {
+      "id": "sy_disagree",
+      "label": "Disagreement rules",
+      "layer": "synthesis",
+      "kind": "compute",
+      "status": "partial",
+      "summary": "Three documented rules that surface conflicts between lenses as structured records.",
+      "does": [
+        "Rule 1: fundamentals lean vs news tone",
+        "Rule 2: price vs 200-day SMA vs news tone",
+        "Rule 3: valuation lean vs growth lean"
+      ],
+      "inputs": [
+        "Lens verdicts",
+        "Overall news tone"
+      ],
+      "outputs": [
+        "Disagreement list with description and basis"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/synthesis/synthesize.py"
+      ],
+      "failure": "Missing lenses simply produce no disagreement.",
+      "limits": [
+        "Rule 3 can never fire today because every growth verdict is UNAVAILABLE"
+      ]
+    },
+    {
+      "id": "sy_langgraph",
+      "label": "LangGraph StateGraph",
+      "layer": "synthesis",
+      "kind": "orchestration",
+      "status": "planned",
+      "summary": "Typed ResearchState, fan-out across lenses, and grounding as an explicit conditional edge.",
+      "does": [
+        "Would replace the body of synthesize() without changing lens code or the HTTP contract"
+      ],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "Not in pyproject.toml; no StateGraph anywhere in the code"
+      ]
+    },
+    {
+      "id": "sy_obs",
+      "label": "Node-level observability",
+      "layer": "synthesis",
+      "kind": "orchestration",
+      "status": "planned",
+      "summary": "Per-step latency, cache hits, routing decisions and fallback activation.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "Today only standard logging calls exist"
+      ]
+    },
+    {
+      "id": "llm_client",
+      "label": "LLM client (Groq / Anthropic)",
+      "layer": "llm",
+      "kind": "llm",
+      "status": "implemented",
+      "summary": "One provider-neutral complete() interface. Every model call in the system goes through it at temperature 0.",
+      "does": [
+        "Groq by default, model llama-3.1-8b-instant",
+        "Anthropic adapter selected with LLM_PROVIDER=anthropic",
+        "Model names overridable by environment variable"
+      ],
+      "inputs": [
+        "System prompt",
+        "JSON payload"
+      ],
+      "outputs": [
+        "Text"
+      ],
+      "tech": [
+        "groq SDK",
+        "anthropic SDK"
+      ],
+      "files": [
+        "quantera/llm/__init__.py",
+        "quantera/llm/base.py",
+        "quantera/llm/groq_client.py",
+        "quantera/llm/anthropic_client.py"
+      ],
+      "failure": "Missing keys and provider errors raise LLMError; every caller catches it and falls back.",
+      "limits": [
+        "No retry or timeout policy in the wrapper"
+      ]
+    },
+    {
+      "id": "llm_sentiment",
+      "label": "Article sentiment classifier",
+      "layer": "llm",
+      "kind": "llm",
+      "status": "implemented",
+      "summary": "Labels the tone of one article's headline and summary. It never sees prices or other articles.",
+      "does": [
+        "Returns strict JSON with exactly five keys",
+        "Label POSITIVE / NEUTRAL / NEGATIVE with confidence 0–1",
+        "Quotes an evidence span of at most 12 words"
+      ],
+      "inputs": [
+        "Article id, headline, summary text"
+      ],
+      "outputs": [
+        "ItemSentiment"
+      ],
+      "tech": [
+        "LLM client"
+      ],
+      "files": [
+        "quantera/lenses/news_sentiment/sentiment.py"
+      ],
+      "failure": "Any rejected response becomes NEUTRAL with confidence 0, so it adds nothing to the aggregate tone.",
+      "limits": [
+        "Text tone, not a price prediction"
+      ]
+    },
+    {
+      "id": "llm_global",
+      "label": "Global-link hypotheses",
+      "layer": "llm",
+      "kind": "llm",
+      "status": "implemented",
+      "summary": "Up to three hedged macro hypotheses, each tied to supporting article ids.",
+      "does": [
+        "Claims must use hedging words such as may, could or might",
+        "Each needs a confidence level and a caveat"
+      ],
+      "inputs": [
+        "Retrieved articles"
+      ],
+      "outputs": [
+        "GlobalLink list"
+      ],
+      "tech": [
+        "LLM client"
+      ],
+      "files": [
+        "quantera/lenses/news_sentiment/global_links.py"
+      ],
+      "failure": "Invalid links are dropped individually; any URL in the output drops all of them.",
+      "limits": [
+        "Grounded in news text only, not macro data"
+      ]
+    },
+    {
+      "id": "llm_narrative",
+      "label": "Research brief narration",
+      "layer": "llm",
+      "kind": "llm",
+      "status": "implemented",
+      "summary": "Writes a short cross-lens brief from verdicts, tone, sources and disagreements that code already produced.",
+      "does": [
+        "Told not to compute or introduce numbers",
+        "Must name every provided disagreement",
+        "Must cite sources as markdown links and end with the disclaimer"
+      ],
+      "inputs": [
+        "Narrative payload built by synthesize()"
+      ],
+      "outputs": [
+        "Draft brief, at most 700 tokens"
+      ],
+      "tech": [
+        "LLM client"
+      ],
+      "files": [
+        "quantera/synthesis/synthesize.py"
+      ],
+      "failure": "Provider errors and guard failures both return the template brief.",
+      "limits": []
+    },
+    {
+      "id": "llm_lens_explain",
+      "label": "Per-lens explanations",
+      "layer": "llm",
+      "kind": "llm",
+      "status": "implemented",
+      "summary": "Lens-level explanations with their own number guards and templates.",
+      "does": [
+        "Fundamentals and technicals explanations",
+        "News sentiment summary"
+      ],
+      "inputs": [
+        "One lens result"
+      ],
+      "outputs": [
+        "Explanation text"
+      ],
+      "tech": [
+        "LLM client"
+      ],
+      "files": [
+        "quantera/lenses/fundamentals/explain.py",
+        "quantera/lenses/technicals/explain.py",
+        "quantera/lenses/news_sentiment/summarize.py"
+      ],
+      "failure": "Template summary on any failure.",
+      "limits": [
+        "Only used when a lens is called directly; the API path turns them off"
+      ]
+    },
+    {
+      "id": "gd_numbers",
+      "label": "Numeric grounding check",
+      "layer": "guards",
+      "kind": "guard",
+      "status": "implemented",
+      "summary": "Every number in model output must equal a number in the model's input, or its rounding to 0–4 decimal places.",
+      "does": [
+        "Regex extraction of integers, decimals, comma groups and percentages",
+        "Allowed set built by walking the entire input payload"
+      ],
+      "inputs": [
+        "Model text",
+        "Payload the model was given"
+      ],
+      "outputs": [
+        "Pass or reject"
+      ],
+      "tech": [
+        "Python regex"
+      ],
+      "files": [
+        "quantera/lenses/news_sentiment/explain.py"
+      ],
+      "failure": "One untraceable number rejects the whole text.",
+      "limits": [
+        "Matches values, not claims: a real number attached to the wrong metric still passes",
+        "Spelled-out numbers are not detected"
+      ]
+    },
+    {
+      "id": "gd_citations",
+      "label": "Citation & URL check",
+      "layer": "guards",
+      "kind": "guard",
+      "status": "implemented",
+      "summary": "Models may only link to sources that retrieval returned.",
+      "does": [
+        "Every URL must normalize to an allowed source URL",
+        "Markdown link text must match an allowed source name"
+      ],
+      "inputs": [
+        "Model text",
+        "Retrieved sources"
+      ],
+      "outputs": [
+        "Pass or reject"
+      ],
+      "tech": [
+        "Python regex",
+        "urllib.parse"
+      ],
+      "files": [
+        "quantera/lenses/news_sentiment/explain.py"
+      ],
+      "failure": "Rejects the narrative.",
+      "limits": []
+    },
+    {
+      "id": "gd_advice",
+      "label": "Advice-language filter",
+      "layer": "guards",
+      "kind": "guard",
+      "status": "implemented",
+      "summary": "Blocks recommendation wording and requires the research disclaimer.",
+      "does": [
+        "Rejects buy, sell, hold, short, price target, entry or exit point, stop loss",
+        "Brief must mention research and financial advice"
+      ],
+      "inputs": [
+        "Model text"
+      ],
+      "outputs": [
+        "Pass or reject"
+      ],
+      "tech": [
+        "Python regex"
+      ],
+      "files": [
+        "quantera/lenses/news_sentiment/explain.py",
+        "quantera/synthesis/synthesize.py"
+      ],
+      "failure": "Rejects the narrative.",
+      "limits": [
+        "Keyword filter, so a legitimate phrase like 'hold up' is also rejected"
+      ]
+    },
+    {
+      "id": "gd_evidence",
+      "label": "Evidence-span check",
+      "layer": "guards",
+      "kind": "guard",
+      "status": "implemented",
+      "summary": "A sentiment label is accepted only if its quoted evidence appears in the article text.",
+      "does": [
+        "Exact key set and matching item id",
+        "Normalized substring match for the evidence span",
+        "Number and advice checks on the rationale"
+      ],
+      "inputs": [
+        "Classifier JSON",
+        "Article text"
+      ],
+      "outputs": [
+        "Accepted ItemSentiment or neutral fallback"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/lenses/news_sentiment/sentiment.py"
+      ],
+      "failure": "NEUTRAL with confidence 0, labelled 'unscored: guardrail'.",
+      "limits": []
+    },
+    {
+      "id": "gd_missing",
+      "label": "Missing-data propagation",
+      "layer": "guards",
+      "kind": "guard",
+      "status": "implemented",
+      "summary": "Unavailable stays unavailable all the way to the response.",
+      "does": [
+        "UNAVAILABLE verdicts name the missing inputs",
+        "data_notes list every skipped lens and unavailable metric",
+        "Template brief prints 'unavailable' for missing lenses"
+      ],
+      "inputs": [
+        "Lens results"
+      ],
+      "outputs": [
+        "data_notes"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/models.py",
+        "quantera/synthesis/synthesize.py"
+      ],
+      "failure": "This is the failure path.",
+      "limits": []
+    },
+    {
+      "id": "gd_fallback",
+      "label": "Template fallback",
+      "layer": "guards",
+      "kind": "guard",
+      "status": "implemented",
+      "summary": "Deterministic brief built only from computed verdicts, tone and disagreements.",
+      "does": [
+        "Used when the provider fails or any guard rejects",
+        "Response records narrative_status: llm_narrative or template_fallback"
+      ],
+      "inputs": [
+        "SynthesisResult fields"
+      ],
+      "outputs": [
+        "Template brief"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/synthesis/synthesize.py"
+      ],
+      "failure": "Cannot fail on model output; it does not call a model.",
+      "limits": []
+    },
+    {
+      "id": "gd_claims",
+      "label": "Claim-level provenance",
+      "layer": "guards",
+      "kind": "guard",
+      "status": "planned",
+      "summary": "Bind each generated number to the specific metric and source it describes.",
+      "does": [
+        "Would close the value-matching gap in the numeric check"
+      ],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": []
+    },
+    {
+      "id": "dl_result",
+      "label": "SynthesisResult",
+      "layer": "delivery",
+      "kind": "data",
+      "status": "implemented",
+      "summary": "The response contract: all three lens results, disagreements, brief, its status, sources and data notes.",
+      "does": [],
+      "inputs": [
+        "Orchestrator output"
+      ],
+      "outputs": [
+        "JSON-serializable model"
+      ],
+      "tech": [
+        "Pydantic"
+      ],
+      "files": [
+        "quantera/synthesis/models_synthesis.py"
+      ],
+      "failure": "Lens fields are optional; a missing lens serializes as null.",
+      "limits": []
+    },
+    {
+      "id": "dl_graph",
+      "label": "Knowledge-graph builder",
+      "layer": "delivery",
+      "kind": "compute",
+      "status": "implemented",
+      "summary": "Builds the clustered company graph from validated results. No node or edge comes from a model.",
+      "does": [
+        "10 node kinds and 13 edge kinds",
+        "Every node and edge carries a grounding string",
+        "Clusters for lenses, sector, peers, news, global links and disagreements"
+      ],
+      "inputs": [
+        "SynthesisResult",
+        "Peer tickers"
+      ],
+      "outputs": [
+        "TickerGraph"
+      ],
+      "tech": [
+        "Pydantic"
+      ],
+      "files": [
+        "quantera/graph/build_graph.py",
+        "quantera/graph/models_graph.py"
+      ],
+      "failure": "Unusable lenses are left out of the graph.",
+      "limits": []
+    },
+    {
+      "id": "dl_api",
+      "label": "FastAPI research endpoint",
+      "layer": "delivery",
+      "kind": "delivery",
+      "status": "implemented",
+      "summary": "GET /api/research/{ticker} returns synthesis and graph, cached for 2 hours.",
+      "does": [
+        "Ticker must match ^[A-Za-z0-9]{1,10}$ or HTTP 400",
+        "Unhandled failure returns HTTP 502 with error code research_failed",
+        "Responses include cached and generated_at"
+      ],
+      "inputs": [
+        "Ticker"
+      ],
+      "outputs": [
+        "JSON: synthesis, graph, cached, generated_at"
+      ],
+      "tech": [
+        "FastAPI",
+        "uvicorn"
+      ],
+      "files": [
+        "quantera/server/app.py"
+      ],
+      "failure": "502 with a structured error body.",
+      "limits": [
+        "Synchronous; a cold request waits on every source and model call",
+        "Runs locally only, not deployed"
+      ]
+    },
+    {
+      "id": "dl_ui",
+      "label": "Knowledge-graph UI",
+      "layer": "delivery",
+      "kind": "delivery",
+      "status": "implemented",
+      "summary": "Served at /. Renders the research graph with Cytoscape.js and the fCoSE layout.",
+      "does": [],
+      "inputs": [
+        "/api/research/{ticker}"
+      ],
+      "outputs": [
+        "Interactive company graph"
+      ],
+      "tech": [
+        "Cytoscape.js 3.30",
+        "cytoscape-fcose"
+      ],
+      "files": [
+        "quantera/server/static/index.html"
+      ],
+      "failure": "Shows the API error message.",
+      "limits": []
+    },
+    {
+      "id": "dl_dash",
+      "label": "Technicals dashboard",
+      "layer": "delivery",
+      "kind": "delivery",
+      "status": "implemented",
+      "summary": "Served at /technicals. Price and indicator charts from the same endpoint.",
+      "does": [],
+      "inputs": [
+        "/api/research/{ticker}"
+      ],
+      "outputs": [
+        "Charts"
+      ],
+      "tech": [
+        "Chart.js 4.4"
+      ],
+      "files": [
+        "quantera/server/static/technicals.html"
+      ],
+      "failure": "Shows the API error message.",
+      "limits": []
+    },
+    {
+      "id": "dl_deploy",
+      "label": "Public app deployment",
+      "layer": "delivery",
+      "kind": "delivery",
+      "status": "planned",
+      "summary": "Hosted API and UI. Today the app runs with uvicorn on a local machine.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": [
+        "No Dockerfile, host configuration or secrets setup exists"
+      ]
+    },
+    {
+      "id": "ev_sec",
+      "label": "SEC 10-K validation harness",
+      "layer": "eval",
+      "kind": "eval",
+      "status": "implemented",
+      "summary": "Compares yfinance figures with hand-verified filing values, field by field, and fails closed.",
+      "does": [
+        "2% relative tolerance per field",
+        "Scores only fields whose reporting period matches",
+        "Passes only if at least one field is aligned and ≥ 90% match",
+        "Reported result: 23 of 24 fields across 8 companies (95.8%), XOM revenue-definition mismatch"
+      ],
+      "inputs": [
+        "DataProvider",
+        "Verified reference data"
+      ],
+      "outputs": [
+        "ValidationReport"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/validation/harness.py"
+      ],
+      "failure": "No verified data means the harness cannot pass.",
+      "limits": [
+        "Live run against yfinance, so the figure can drift as Yahoo revises data",
+        "3 fields per company: revenue, net income, total assets"
+      ]
+    },
+    {
+      "id": "ev_price",
+      "label": "Price validation harness",
+      "layer": "eval",
+      "kind": "eval",
+      "status": "partial",
+      "summary": "Structural checks on every price series plus optional spot checks.",
+      "does": [
+        "Chronological and unique dates",
+        "Positive prices",
+        "Close within high–low range",
+        "Trading-day gap detection"
+      ],
+      "inputs": [
+        "PriceHistory",
+        "Price reference data"
+      ],
+      "outputs": [
+        "PriceValidationReport"
+      ],
+      "tech": [
+        "Python"
+      ],
+      "files": [
+        "quantera/validation/price_harness.py"
+      ],
+      "failure": "Failed structural checks are reported per ticker.",
+      "limits": [
+        "Adjusted-close spot checks are all unverified, so only structural checks run"
+      ]
+    },
+    {
+      "id": "ev_unit",
+      "label": "Unit test suite",
+      "layer": "eval",
+      "kind": "eval",
+      "status": "implemented",
+      "summary": "90 tests pass with mock sources and a mock LLM client. Ran during this audit.",
+      "does": [
+        "Ratios, indicators, verdicts, guards, synthesis, graph, API, cache"
+      ],
+      "inputs": [],
+      "outputs": [],
+      "tech": [
+        "pytest",
+        "httpx"
+      ],
+      "files": [
+        "tests/conftest.py",
+        "tests/test_synthesis.py",
+        "tests/test_api_phase4.py"
+      ],
+      "failure": "",
+      "limits": [
+        "Not run in CI: the only workflow deploys Pages"
+      ]
+    },
+    {
+      "id": "ev_integration",
+      "label": "Live integration tests",
+      "layer": "eval",
+      "kind": "eval",
+      "status": "implemented",
+      "summary": "5 tests marked integration that call yfinance, Finnhub and Groq. Excluded by default.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [
+        "pytest markers"
+      ],
+      "files": [
+        "tests/test_integration_yfinance.py",
+        "tests/test_integration_finnhub_news.py",
+        "tests/test_integration_groq_llm.py"
+      ],
+      "failure": "",
+      "limits": [
+        "Need live API keys; not run during this audit"
+      ]
+    },
+    {
+      "id": "ev_graph_eval",
+      "label": "Routing & retrieval eval",
+      "layer": "eval",
+      "kind": "eval",
+      "status": "planned",
+      "summary": "Tests for graph transitions and fallback activation, and a labelled set for news retrieval quality.",
+      "does": [],
+      "inputs": [],
+      "outputs": [],
+      "tech": [],
+      "files": [],
+      "failure": "Not built.",
+      "limits": []
+    }
+  ],
+  "edges": [
+    {
+      "source": "src_yf",
+      "target": "ing_yf_adapter",
+      "label": "statements, info, OHLCV"
+    },
+    {
+      "source": "ing_yf_adapter",
+      "target": "ing_provider",
+      "label": "raw contract models"
+    },
+    {
+      "source": "ing_provider",
+      "target": "ing_normalize",
+      "label": "normalize before caching"
+    },
+    {
+      "source": "ing_normalize",
+      "target": "ing_contracts",
+      "label": "validated models"
+    },
+    {
+      "source": "ing_provider",
+      "target": "st_cache",
+      "label": "read-through cache"
+    },
+    {
+      "source": "src_fh_news",
+      "target": "ing_news",
+      "label": "company-news JSON"
+    },
+    {
+      "source": "ing_news",
+      "target": "st_cache",
+      "label": "news cached 2 h"
+    },
+    {
+      "source": "src_sec_ref",
+      "target": "st_refdata",
+      "label": "hand-copied values + filing URL"
+    },
+    {
+      "source": "ing_contracts",
+      "target": "ln_fund",
+      "label": "latest Financials"
+    },
+    {
+      "source": "ing_contracts",
+      "target": "ln_tech",
+      "label": "PriceHistory, adjusted close"
+    },
+    {
+      "source": "ing_news",
+      "target": "ln_news",
+      "label": "allowlisted, de-duplicated items"
+    },
+    {
+      "source": "ln_news",
+      "target": "llm_sentiment",
+      "label": "one article per call, top 8"
+    },
+    {
+      "source": "llm_sentiment",
+      "target": "gd_evidence",
+      "label": "label, confidence, evidence span"
+    },
+    {
+      "source": "gd_evidence",
+      "target": "ln_news",
+      "label": "accepted label or neutral fallback"
+    },
+    {
+      "source": "ln_news",
+      "target": "llm_global",
+      "label": "retrieved articles"
+    },
+    {
+      "source": "llm_global",
+      "target": "gd_numbers",
+      "label": "hedged hypotheses"
+    },
+    {
+      "source": "ln_fund",
+      "target": "sy_orch",
+      "label": "FundamentalsResult"
+    },
+    {
+      "source": "ln_tech",
+      "target": "sy_orch",
+      "label": "TechnicalsResult"
+    },
+    {
+      "source": "ln_news",
+      "target": "sy_orch",
+      "label": "tone, item sentiments, sources"
+    },
+    {
+      "source": "sy_orch",
+      "target": "sy_disagree",
+      "label": "verdicts + tone"
+    },
+    {
+      "source": "sy_disagree",
+      "target": "llm_narrative",
+      "label": "disagreements"
+    },
+    {
+      "source": "sy_orch",
+      "target": "llm_narrative",
+      "label": "verdicts, tone, sources, data notes"
+    },
+    {
+      "source": "llm_client",
+      "target": "llm_sentiment",
+      "label": "complete()",
+      "style": "uses"
+    },
+    {
+      "source": "llm_client",
+      "target": "llm_global",
+      "label": "complete()",
+      "style": "uses"
+    },
+    {
+      "source": "llm_client",
+      "target": "llm_narrative",
+      "label": "complete()",
+      "style": "uses"
+    },
+    {
+      "source": "llm_client",
+      "target": "llm_lens_explain",
+      "label": "complete()",
+      "style": "uses"
+    },
+    {
+      "source": "llm_narrative",
+      "target": "gd_citations",
+      "label": "draft brief"
+    },
+    {
+      "source": "llm_narrative",
+      "target": "gd_numbers",
+      "label": "draft brief"
+    },
+    {
+      "source": "llm_narrative",
+      "target": "gd_advice",
+      "label": "draft brief"
+    },
+    {
+      "source": "gd_numbers",
+      "target": "gd_fallback",
+      "label": "any check fails",
+      "style": "fail"
+    },
+    {
+      "source": "gd_citations",
+      "target": "gd_fallback",
+      "label": "any check fails",
+      "style": "fail"
+    },
+    {
+      "source": "gd_advice",
+      "target": "gd_fallback",
+      "label": "any check fails",
+      "style": "fail"
+    },
+    {
+      "source": "gd_advice",
+      "target": "dl_result",
+      "label": "all checks pass: llm_narrative"
+    },
+    {
+      "source": "gd_fallback",
+      "target": "dl_result",
+      "label": "template_fallback"
+    },
+    {
+      "source": "ln_fund",
+      "target": "gd_missing",
+      "label": "UNAVAILABLE verdicts"
+    },
+    {
+      "source": "ln_tech",
+      "target": "gd_missing",
+      "label": "UNAVAILABLE indicators"
+    },
+    {
+      "source": "gd_missing",
+      "target": "dl_result",
+      "label": "data_notes"
+    },
+    {
+      "source": "sy_orch",
+      "target": "dl_result",
+      "label": "lens results, disagreements"
+    },
+    {
+      "source": "dl_result",
+      "target": "dl_graph",
+      "label": "validated results"
+    },
+    {
+      "source": "src_fh_peers",
+      "target": "dl_graph",
+      "label": "peer tickers"
+    },
+    {
+      "source": "dl_graph",
+      "target": "dl_api",
+      "label": "TickerGraph"
+    },
+    {
+      "source": "dl_result",
+      "target": "dl_api",
+      "label": "synthesis JSON"
+    },
+    {
+      "source": "dl_api",
+      "target": "st_cache",
+      "label": "response cached 2 h (phase5v1)"
+    },
+    {
+      "source": "dl_api",
+      "target": "dl_ui",
+      "label": "JSON"
+    },
+    {
+      "source": "dl_api",
+      "target": "dl_dash",
+      "label": "JSON"
+    },
+    {
+      "source": "st_refdata",
+      "target": "ev_sec",
+      "label": "verified reference"
+    },
+    {
+      "source": "ing_provider",
+      "target": "ev_sec",
+      "label": "values under test"
+    },
+    {
+      "source": "st_refdata",
+      "target": "ev_price",
+      "label": "spot-check templates"
+    },
+    {
+      "source": "ing_provider",
+      "target": "ev_price",
+      "label": "price history"
+    },
+    {
+      "source": "src_edgar_api",
+      "target": "ing_pit",
+      "label": "filing-dated facts",
+      "style": "planned"
+    },
+    {
+      "source": "ing_pit",
+      "target": "ing_contracts",
+      "label": "as-of snapshots",
+      "style": "planned"
+    },
+    {
+      "source": "src_13f",
+      "target": "ag_ownership",
+      "label": "holdings",
+      "style": "planned"
+    },
+    {
+      "source": "src_macro",
+      "target": "ag_macro",
+      "label": "macro series",
+      "style": "planned"
+    },
+    {
+      "source": "ing_contracts",
+      "target": "ag_valuation",
+      "label": "cash flows, capital structure",
+      "style": "planned"
+    },
+    {
+      "source": "ing_contracts",
+      "target": "ag_risk",
+      "label": "returns",
+      "style": "planned"
+    },
+    {
+      "source": "ing_contracts",
+      "target": "ag_portfolio",
+      "label": "multi-ticker prices",
+      "style": "planned"
+    },
+    {
+      "source": "sy_langgraph",
+      "target": "sy_orch",
+      "label": "would replace",
+      "style": "planned"
+    },
+    {
+      "source": "sy_langgraph",
+      "target": "sy_obs",
+      "label": "emits node telemetry",
+      "style": "planned"
+    },
+    {
+      "source": "ag_valuation",
+      "target": "sy_langgraph",
+      "label": "",
+      "style": "planned"
+    },
+    {
+      "source": "ag_risk",
+      "target": "sy_langgraph",
+      "label": "",
+      "style": "planned"
+    },
+    {
+      "source": "ag_macro",
+      "target": "sy_langgraph",
+      "label": "",
+      "style": "planned"
+    },
+    {
+      "source": "ag_ownership",
+      "target": "sy_langgraph",
+      "label": "",
+      "style": "planned"
+    },
+    {
+      "source": "ag_portfolio",
+      "target": "sy_langgraph",
+      "label": "",
+      "style": "planned"
+    },
+    {
+      "source": "gd_claims",
+      "target": "gd_numbers",
+      "label": "would strengthen",
+      "style": "planned"
+    },
+    {
+      "source": "st_vector",
+      "target": "ln_news",
+      "label": "only if eval shows need",
+      "style": "planned"
+    },
+    {
+      "source": "dl_api",
+      "target": "dl_deploy",
+      "label": "",
+      "style": "planned"
+    },
+    {
+      "source": "ev_graph_eval",
+      "target": "sy_langgraph",
+      "label": "tests routing",
+      "style": "planned"
+    }
+  ],
+  "agentView": {
+    "note": "QuantEra has three research lenses today, run in sequence by one function. They are deterministic modules that call a model for bounded subtasks, not autonomous agents. The five dashed lenses are the planned extension.",
+    "positions": {
+      "dl_api": [
+        0,
+        3
+      ],
+      "sy_orch": [
+        1,
+        3
+      ],
+      "sy_langgraph": [
+        1,
+        6.6
+      ],
+      "ln_fund": [
+        2,
+        0.6
+      ],
+      "ln_tech": [
+        2,
+        1.8
+      ],
+      "ln_news": [
+        2,
+        3
+      ],
+      "ag_valuation": [
+        2,
+        4.6
+      ],
+      "ag_risk": [
+        2,
+        5.6
+      ],
+      "ag_macro": [
+        2,
+        6.6
+      ],
+      "ag_ownership": [
+        2,
+        7.6
+      ],
+      "ag_portfolio": [
+        2,
+        8.6
+      ],
+      "gd_missing": [
+        3,
+        0.6
+      ],
+      "llm_sentiment": [
+        3,
+        3
+      ],
+      "gd_evidence": [
+        4,
+        3
+      ],
+      "sy_disagree": [
+        4,
+        1.8
+      ],
+      "llm_narrative": [
+        5,
+        1.8
+      ],
+      "gd_numbers": [
+        6,
+        0.6
+      ],
+      "gd_citations": [
+        6,
+        1.8
+      ],
+      "gd_advice": [
+        6,
+        3
+      ],
+      "gd_fallback": [
+        7,
+        3
+      ],
+      "dl_result": [
+        8,
+        1.8
+      ]
+    },
+    "edges": [
+      {
+        "source": "dl_api",
+        "target": "sy_orch",
+        "label": "ticker"
+      },
+      {
+        "source": "sy_orch",
+        "target": "ln_fund",
+        "label": "1st"
+      },
+      {
+        "source": "sy_orch",
+        "target": "ln_tech",
+        "label": "2nd"
+      },
+      {
+        "source": "sy_orch",
+        "target": "ln_news",
+        "label": "3rd"
+      },
+      {
+        "source": "ln_news",
+        "target": "llm_sentiment",
+        "label": "per article"
+      },
+      {
+        "source": "llm_sentiment",
+        "target": "gd_evidence",
+        "label": ""
+      },
+      {
+        "source": "ln_fund",
+        "target": "gd_missing",
+        "label": ""
+      },
+      {
+        "source": "ln_tech",
+        "target": "gd_missing",
+        "label": ""
+      },
+      {
+        "source": "gd_evidence",
+        "target": "sy_disagree",
+        "label": "tone"
+      },
+      {
+        "source": "ln_fund",
+        "target": "sy_disagree",
+        "label": "verdicts"
+      },
+      {
+        "source": "ln_tech",
+        "target": "sy_disagree",
+        "label": "trend"
+      },
+      {
+        "source": "sy_disagree",
+        "target": "llm_narrative",
+        "label": ""
+      },
+      {
+        "source": "llm_narrative",
+        "target": "gd_numbers",
+        "label": ""
+      },
+      {
+        "source": "llm_narrative",
+        "target": "gd_citations",
+        "label": ""
+      },
+      {
+        "source": "llm_narrative",
+        "target": "gd_advice",
+        "label": ""
+      },
+      {
+        "source": "gd_numbers",
+        "target": "gd_fallback",
+        "label": "fail",
+        "style": "fail"
+      },
+      {
+        "source": "gd_citations",
+        "target": "dl_result",
+        "label": "all pass"
+      },
+      {
+        "source": "gd_fallback",
+        "target": "dl_result",
+        "label": ""
+      },
+      {
+        "source": "gd_missing",
+        "target": "dl_result",
+        "label": "data notes"
+      },
+      {
+        "source": "sy_langgraph",
+        "target": "ag_valuation",
+        "label": "",
+        "style": "planned"
+      },
+      {
+        "source": "sy_langgraph",
+        "target": "ag_risk",
+        "label": "",
+        "style": "planned"
+      },
+      {
+        "source": "sy_langgraph",
+        "target": "ag_macro",
+        "label": "",
+        "style": "planned"
+      },
+      {
+        "source": "sy_langgraph",
+        "target": "ag_ownership",
+        "label": "",
+        "style": "planned"
+      },
+      {
+        "source": "sy_langgraph",
+        "target": "ag_portfolio",
+        "label": "",
+        "style": "planned"
+      },
+      {
+        "source": "sy_langgraph",
+        "target": "sy_orch",
+        "label": "would replace",
+        "style": "planned"
+      },
+      {
+        "source": "gd_advice",
+        "target": "gd_fallback",
+        "label": "",
+        "style": "fail"
+      },
+      {
+        "source": "gd_citations",
+        "target": "gd_fallback",
+        "label": "",
+        "style": "fail"
+      }
+    ]
+  },
+  "walkthrough": {
+    "title": "GET /api/research/AAPL",
+    "note": "A guided reading of the code path in app.py and synthesize(). It is not a live execution trace.",
+    "steps": [
+      {
+        "title": "Validate and check the cache",
+        "body": "The route upper-cases the ticker, rejects anything outside 1–10 alphanumeric characters with HTTP 400, and returns a cached response if one under phase5v1:AAPL is younger than 2 hours.",
+        "nodes": [
+          "dl_api",
+          "st_cache"
+        ],
+        "edges": [
+          [
+            "dl_api",
+            "st_cache"
+          ]
+        ]
+      },
+      {
+        "title": "Fetch and normalize data",
+        "body": "DataProvider reads yfinance statements and prices, scales and sanity-checks them, and returns FieldValue-based contracts. A missing line item stays is_present=False.",
+        "nodes": [
+          "src_yf",
+          "ing_yf_adapter",
+          "ing_provider",
+          "ing_normalize",
+          "ing_contracts"
+        ],
+        "edges": [
+          [
+            "src_yf",
+            "ing_yf_adapter"
+          ],
+          [
+            "ing_yf_adapter",
+            "ing_provider"
+          ],
+          [
+            "ing_provider",
+            "ing_normalize"
+          ],
+          [
+            "ing_normalize",
+            "ing_contracts"
+          ]
+        ]
+      },
+      {
+        "title": "Run fundamentals, then technicals",
+        "body": "Ratios and indicators are plain Python. EV/EBITDA, interest coverage and all three growth metrics come back UNAVAILABLE for every ticker and are recorded as data notes.",
+        "nodes": [
+          "ing_contracts",
+          "ln_fund",
+          "ln_tech",
+          "gd_missing"
+        ],
+        "edges": [
+          [
+            "ing_contracts",
+            "ln_fund"
+          ],
+          [
+            "ing_contracts",
+            "ln_tech"
+          ],
+          [
+            "ln_fund",
+            "gd_missing"
+          ],
+          [
+            "ln_tech",
+            "gd_missing"
+          ]
+        ]
+      },
+      {
+        "title": "Ingest and rank news",
+        "body": "Finnhub returns 14 days of articles. Only allowlisted outlets survive, near-duplicates are removed, and the top 8 by recency, relevance and ticker match go forward.",
+        "nodes": [
+          "src_fh_news",
+          "ing_news",
+          "ln_news"
+        ],
+        "edges": [
+          [
+            "src_fh_news",
+            "ing_news"
+          ],
+          [
+            "ing_news",
+            "ln_news"
+          ]
+        ]
+      },
+      {
+        "title": "Classify each article, then aggregate in code",
+        "body": "The model labels each article separately. Its quoted evidence must appear in the article or the label becomes neutral with zero weight. Overall tone is a confidence-weighted sum computed in Python.",
+        "nodes": [
+          "ln_news",
+          "llm_sentiment",
+          "gd_evidence",
+          "llm_client"
+        ],
+        "edges": [
+          [
+            "ln_news",
+            "llm_sentiment"
+          ],
+          [
+            "llm_sentiment",
+            "gd_evidence"
+          ],
+          [
+            "gd_evidence",
+            "ln_news"
+          ],
+          [
+            "llm_client",
+            "llm_sentiment"
+          ]
+        ]
+      },
+      {
+        "title": "Detect disagreements",
+        "body": "Three fixed rules compare the lenses, for example strong fundamentals against negative news tone. Each match becomes a record with the exact basis that triggered it.",
+        "nodes": [
+          "ln_fund",
+          "ln_tech",
+          "ln_news",
+          "sy_orch",
+          "sy_disagree"
+        ],
+        "edges": [
+          [
+            "ln_fund",
+            "sy_orch"
+          ],
+          [
+            "ln_tech",
+            "sy_orch"
+          ],
+          [
+            "ln_news",
+            "sy_orch"
+          ],
+          [
+            "sy_orch",
+            "sy_disagree"
+          ]
+        ]
+      },
+      {
+        "title": "Draft the brief and check it",
+        "body": "The model writes a brief from the already-computed payload. Any number not in that payload, any link to an unretrieved source, or any advice word rejects the whole draft.",
+        "nodes": [
+          "sy_disagree",
+          "llm_narrative",
+          "gd_numbers",
+          "gd_citations",
+          "gd_advice"
+        ],
+        "edges": [
+          [
+            "sy_disagree",
+            "llm_narrative"
+          ],
+          [
+            "sy_orch",
+            "llm_narrative"
+          ],
+          [
+            "llm_narrative",
+            "gd_numbers"
+          ],
+          [
+            "llm_narrative",
+            "gd_citations"
+          ],
+          [
+            "llm_narrative",
+            "gd_advice"
+          ]
+        ]
+      },
+      {
+        "title": "Fall back if rejected",
+        "body": "A rejected or failed draft is replaced by a template built only from verdicts and tone. narrative_status tells the client which one it received.",
+        "nodes": [
+          "gd_numbers",
+          "gd_citations",
+          "gd_advice",
+          "gd_fallback",
+          "dl_result"
+        ],
+        "edges": [
+          [
+            "gd_numbers",
+            "gd_fallback"
+          ],
+          [
+            "gd_citations",
+            "gd_fallback"
+          ],
+          [
+            "gd_advice",
+            "gd_fallback"
+          ],
+          [
+            "gd_fallback",
+            "dl_result"
+          ],
+          [
+            "gd_advice",
+            "dl_result"
+          ]
+        ]
+      },
+      {
+        "title": "Build the graph and respond",
+        "body": "The graph builder turns validated results and peer tickers into nodes and edges, each with a grounding string. The route caches the payload and returns it to the UI.",
+        "nodes": [
+          "dl_result",
+          "dl_graph",
+          "src_fh_peers",
+          "dl_api",
+          "dl_ui",
+          "st_cache"
+        ],
+        "edges": [
+          [
+            "dl_result",
+            "dl_graph"
+          ],
+          [
+            "src_fh_peers",
+            "dl_graph"
+          ],
+          [
+            "dl_graph",
+            "dl_api"
+          ],
+          [
+            "dl_api",
+            "dl_ui"
+          ],
+          [
+            "dl_api",
+            "st_cache"
+          ]
+        ]
+      }
+    ]
+  },
+  "vision": {
+    "title": "What we're building",
+    "summary": "An equity research workbench where every figure traces back to a filing or a price series, every sentence a model writes is checked before it is shown, and missing evidence is reported instead of filled in. Three lenses run today. The target is eight lenses coordinated as a typed graph, on point-in-time data, with a public deployment.",
+    "principles": [
+      {
+        "title": "Numbers come from code",
+        "body": "Ratios, indicators, valuations and risk measures are deterministic Python with tests. A model never calculates a figure that reaches the user."
+      },
+      {
+        "title": "Models write inside guards",
+        "body": "Every model output is checked for untraceable numbers, unretrieved sources and advice language. A failed check means a template, not a softer draft."
+      },
+      {
+        "title": "Gaps stay visible",
+        "body": "A missing field is marked unavailable and carried to the response as a data note. Nothing is defaulted to zero or inferred."
+      }
+    ],
+    "stages": [
+      {
+        "title": "Finish the lenses that exist",
+        "body": "Compute the three growth metrics from the multi-year statements already fetched, add EBITDA and interest expense to the data contract, and run the test suite on every pull request.",
+        "refs": [
+          "ln_fund",
+          "sy_disagree",
+          "ev_unit"
+        ]
+      },
+      {
+        "title": "Move orchestration to LangGraph",
+        "body": "A typed ResearchState, lenses fanned out in parallel, grounding as an explicit conditional edge, and per-node timing and routing telemetry. The HTTP contract stays the same.",
+        "refs": [
+          "sy_langgraph",
+          "sy_obs",
+          "ev_graph_eval"
+        ]
+      },
+      {
+        "title": "Make provenance point-in-time",
+        "body": "Ingest SEC company facts with filing dates so analysis can be pinned to what was public on a given day, and bind each generated number to the field it describes.",
+        "refs": [
+          "src_edgar_api",
+          "ing_pit",
+          "gd_claims"
+        ]
+      },
+      {
+        "title": "Add five lenses",
+        "body": "Valuation (DCF, WACC, sensitivity), risk (EWMA volatility, VaR, expected shortfall), macro context, institutional ownership from 13F filings, and multi-ticker portfolio analysis.",
+        "refs": [
+          "ag_valuation",
+          "ag_risk",
+          "ag_macro",
+          "ag_ownership",
+          "ag_portfolio"
+        ]
+      },
+      {
+        "title": "Deploy it publicly",
+        "body": "A hosted API and research UI, so the walkthrough on this page can be run against a live ticker.",
+        "refs": [
+          "dl_deploy"
+        ]
+      }
+    ]
+  }
+}

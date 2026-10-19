@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QuantEra Research Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Interactive architecture of QuantEra Research Lab, drawn from its source code: what runs today, what is partial, and what is planned.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a research note that opens on its thesis, then a full-width instrument
+   (map with a slide-in inspector), then the index, the known gaps and how to run it.
+   Dark-first; light mirrors it. Status is carried by text, fill and border style,
+   not by color alone. The model column is the only tinted band on the map. */
+:root {
+  --ground: #0d141e;
+  --panel: #131d2a;
+  --panel-2: #182433;
+  --rule: #263547;
+  --ink: #e4ebf3;
+  --ink-2: #97a8bb;
+  --select: #7fd3e8;
+  --ok: #57d19f;
+  --part: #e6b450;
+  --plan: #7f8fa5;
+  --model: #a895f5;
+  --fail: #e88a7a;
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-body: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #f4f6f9; --panel: #ffffff; --panel-2: #eef2f6; --rule: #d3dce6;
+    --ink: #142030; --ink-2: #4e6075; --select: #0e7490;
+    --ok: #13804f; --part: #9a6400; --plan: #66768a; --model: #6b4fd8; --fail: #b8432f;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --ground: #f4f6f9; --panel: #ffffff; --panel-2: #eef2f6; --rule: #d3dce6;
+  --ink: #142030; --ink-2: #4e6075; --select: #0e7490;
+  --ok: #13804f; --part: #9a6400; --plan: #66768a; --model: #6b4fd8; --fail: #b8432f;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: var(--select); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--select); outline-offset: 2px; border-radius: 3px; }
+code { font-family: var(--font-code); font-size: 0.86em; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.wrap { max-width: 1320px; margin: 0 auto; }
+.measure { max-width: 68ch; }
+
+/* Status dots: filled, half-filled, hollow. Shape carries the meaning, color repeats it. */
+.dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; position: relative; top: -1px; }
+.dot.implemented { background: var(--ok); }
+.dot.partial { background: linear-gradient(90deg, var(--part) 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px var(--part); }
+.dot.planned { box-shadow: inset 0 0 0 1.5px var(--plan); }
+
+/* Header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 20px; border-bottom: 1px solid var(--rule); }
+.mark { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: 0.01em; }
+.mark svg { flex: none; }
+.top nav { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.94rem; }
+.top nav a { color: var(--ink-2); text-decoration: none; }
+.top nav a:hover { color: var(--ink); }
+
+/* Thesis */
+.thesis { padding-block: 56px 36px; display: grid; gap: 22px; }
+.thesis h1 {
+  font-family: var(--font-display); font-weight: 500;
+  font-size: clamp(2.1rem, 4.6vw, 3.7rem); line-height: 1.06; letter-spacing: -0.015em;
+  margin: 0; max-width: 24ch; text-wrap: balance;
+}
+.thesis p { margin: 0; color: var(--ink-2); font-size: 1.12rem; }
+.audit-line { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 0.95rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.audit-line strong { color: var(--ink); font-weight: 600; }
+.st { display: inline-flex; align-items: center; gap: 7px; }
+
+/* Instrument */
+.instrument { border: 1px solid var(--rule); border-radius: 10px; background: var(--panel); overflow: hidden; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+.tabs { display: flex; gap: 4px; background: var(--panel-2); padding: 3px; border-radius: 7px; }
+.tab { font: inherit; font-size: 0.92rem; font-weight: 500; color: var(--ink-2); background: none; border: 0; border-radius: 5px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+.tab[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); }
+.shows { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; }
+.toggle { display: inline-flex; gap: 7px; align-items: center; font-size: 0.88rem; cursor: pointer; white-space: nowrap; }
+.toggle input { accent-color: var(--select); margin: 0; }
+.search { position: relative; flex: 1 1 220px; max-width: 340px; margin-left: auto; }
+.search input { width: 100%; font: inherit; font-size: 0.94rem; color: var(--ink); background: var(--ground); border: 1px solid var(--rule); border-radius: 7px; padding: 8px 12px; }
+.search input::placeholder { color: var(--ink-2); }
+.results { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); background: var(--panel); border: 1px solid var(--rule); border-radius: 7px; padding: 4px; display: grid; gap: 2px; box-shadow: 0 10px 28px rgba(0,0,0,0.28); }
+.results button { font: inherit; font-size: 0.9rem; text-align: left; color: var(--ink); background: none; border: 0; border-radius: 5px; padding: 6px 8px; cursor: pointer; display: flex; gap: 9px; align-items: center; }
+.results button:hover, .results button:focus-visible { background: var(--panel-2); }
+.results small { color: var(--ink-2); margin-left: auto; white-space: nowrap; padding-left: 8px; }
+.results .none { padding: 6px 8px; color: var(--ink-2); font-size: 0.9rem; }
+
+.chips { display: flex; gap: 6px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.chips .lbl { font-size: 0.84rem; color: var(--ink-2); margin-right: 4px; flex: none; }
+.chip { flex: none; font: inherit; font-size: 0.84rem; color: var(--ink-2); white-space: nowrap; background: none; border: 1px solid var(--rule); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+.chip[aria-pressed="true"] { color: var(--ink); border-color: var(--select); background: var(--panel-2); }
+.chip.model { border-style: dashed; border-color: var(--model); }
+
+.stage { position: relative; height: 680px; }
+#cy { position: absolute; inset: 0; }
+.stage:focus-visible { outline: 2px solid var(--select); outline-offset: -2px; }
+.canvas-msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; color: var(--ink-2); text-align: center; }
+.zoom { position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; z-index: 6; }
+.icon-btn { font: inherit; font-size: 0.86rem; color: var(--ink); background: var(--panel-2); border: 1px solid var(--rule); border-radius: 6px; padding: 4px 10px; cursor: pointer; min-width: 32px; }
+.icon-btn:disabled { opacity: 0.45; cursor: default; }
+.view-note { position: absolute; left: 14px; bottom: 12px; max-width: 58ch; pointer-events: none; font-size: 0.86rem; color: var(--ink-2); z-index: 5; }
+.view-note span { background: var(--panel); padding: 2px 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
+.inspector {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 380px; z-index: 10;
+  background: var(--panel); border-left: 1px solid var(--rule);
+  overflow-y: auto; padding: 18px 22px 26px;
+  box-shadow: -18px 0 36px -24px rgba(0,0,0,0.5);
+}
+.insp-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.inspector h2 { font-family: var(--font-display); font-weight: 500; font-size: 1.6rem; line-height: 1.15; margin: 0 0 8px; text-wrap: balance; }
+.inspector h3 { font-size: 0.86rem; font-weight: 600; color: var(--ink-2); margin: 20px 0 6px; letter-spacing: 0.01em; }
+.inspector p { margin: 0 0 8px; }
+.inspector ul { margin: 0; padding-left: 18px; }
+.inspector li { margin: 3px 0; }
+.close { font: inherit; font-size: 1.2rem; line-height: 1; color: var(--ink-2); background: none; border: 1px solid var(--rule); border-radius: 6px; width: 30px; height: 30px; cursor: pointer; flex: none; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 0.86rem; color: var(--ink-2); margin-bottom: 12px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; font-size: 0.82rem; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid currentColor; }
+.pill.implemented { color: var(--ok); }
+.pill.partial { color: var(--part); }
+.pill.planned { color: var(--plan); border-style: dashed; }
+.muted { color: var(--ink-2); }
+.limits li::marker { color: var(--part); }
+.files { list-style: none; padding: 0 !important; display: grid; gap: 4px; }
+.files a { font-family: var(--font-code); font-size: 0.8rem; word-break: break-all; }
+.links { display: grid; gap: 4px; list-style: none; padding: 0 !important; }
+.links button { font: inherit; font-size: 0.9rem; color: var(--ink); background: none; border: 0; padding: 2px 0; cursor: pointer; text-align: left; display: flex; gap: 9px; align-items: baseline; }
+.links button .dot { top: 0; }
+.links button:hover .nm { text-decoration: underline; text-underline-offset: 3px; }
+.links .via { color: var(--ink-2); font-size: 0.84rem; }
+
+.walk { display: grid; gap: 12px; }
+.walk .step-count { font-size: 0.86rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.walk ol { margin: 6px 0 0; padding-left: 22px; display: grid; gap: 2px; }
+.walk ol button { font: inherit; font-size: 0.9rem; color: var(--ink-2); background: none; border: 0; padding: 2px 0; cursor: pointer; text-align: left; }
+.walk ol button[aria-current="step"] { color: var(--ink); font-weight: 600; }
+.walk .nav { display: flex; gap: 8px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--rule); font-size: 0.84rem; color: var(--ink-2); }
+.legend .it { display: inline-flex; gap: 8px; align-items: center; }
+.legend svg { display: block; flex: none; }
+.legend .hint { flex-basis: 100%; }
+
+/* Sections */
+section.below { padding-block: 64px 0; }
+section.below h2 { font-family: var(--font-display); font-weight: 500; font-size: clamp(1.6rem, 3vw, 2.2rem); line-height: 1.1; margin: 0 0 10px; text-wrap: balance; }
+section.below .lede { color: var(--ink-2); margin: 0 0 26px; }
+.index { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 28px 32px; }
+.index h3 { font-size: 0.95rem; font-weight: 600; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; gap: 10px; }
+.index h3 small { color: var(--ink-2); font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.index h3.model { border-bottom: 1px dashed var(--model); }
+.index ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.index button { font: inherit; font-size: 0.93rem; color: var(--ink); background: none; border: 0; padding: 3px 0; cursor: pointer; display: flex; gap: 10px; align-items: center; text-align: left; width: 100%; }
+.index button.planned { color: var(--ink-2); }
+.index button:hover .nm { text-decoration: underline; text-underline-offset: 3px; }
+
+.vision-sum { font-family: var(--font-display); font-size: clamp(1.25rem, 2.2vw, 1.6rem); line-height: 1.35; margin: 0 0 36px; max-width: 54ch; text-wrap: pretty; }
+.principles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; margin-bottom: 52px; }
+.principles div { border-top: 1px solid var(--rule); padding-top: 14px; }
+.principles h3 { margin: 0 0 6px; font-size: 1rem; font-weight: 600; }
+.principles p { margin: 0; color: var(--ink-2); }
+.stages-head { font-size: 1rem; font-weight: 600; margin: 0 0 4px; }
+.stages-note { color: var(--ink-2); margin: 0 0 18px; font-size: 0.94rem; }
+.stages { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); counter-reset: stage; }
+.stages > li { counter-increment: stage; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 0 16px; padding-block: 20px; border-bottom: 1px solid var(--rule); }
+.stages > li::before { content: counter(stage); font-family: var(--font-display); font-size: 1.9rem; line-height: 1; color: var(--ink-2); font-variant-numeric: lining-nums; }
+.stages h3 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 600; }
+.stages p { margin: 0 0 12px; color: var(--ink-2); max-width: 72ch; }
+.refs { display: flex; flex-wrap: wrap; gap: 6px; }
+.ref { font: inherit; font-size: 0.84rem; color: var(--ink); background: var(--panel); border: 1px solid var(--rule); border-radius: 999px; padding: 3px 11px 3px 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+.ref:hover { border-color: var(--select); }
+.ref .dot { top: 0; }
+
+.gaps { border-top: 1px solid var(--rule); }
+.gap { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 24px; padding-block: 20px; border-bottom: 1px solid var(--rule); }
+.gap h3 { margin: 0; font-size: 1.02rem; font-weight: 600; line-height: 1.35; }
+.gap p { margin: 0; color: var(--ink-2); }
+.gap .fix { color: var(--ink); }
+
+.run { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.run p { color: var(--ink-2); margin: 0; }
+pre { margin: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-family: var(--font-code); font-size: 0.86rem; line-height: 1.7; }
+pre .c { color: var(--ink-2); }
+
+footer { padding-block: 40px; margin-top: 72px; border-top: 1px solid var(--rule); color: var(--ink-2); font-size: 0.9rem; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; }
+
+@media (max-width: 980px) {
+  .stage { height: 500px; }
+  .inspector { position: static; width: auto; border-left: 0; border-top: 1px solid var(--rule); box-shadow: none; max-height: none; }
+  .gap, .run { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .principles { grid-template-columns: minmax(0, 1fr); gap: 18px; margin-bottom: 40px; }
+  .run { gap: 20px; }
+  .search { margin-left: 0; max-width: none; flex-basis: 100%; }
+}
+@media (max-width: 560px) {
+  .thesis { padding-block: 36px 26px; }
+  .stage { height: 420px; }
+  .bar { padding: 10px; }
+  .tabs { width: 100%; }
+  .tab { flex: 1; padding: 6px 4px; }
+  .top nav { gap: 14px; }
+  .top nav .opt { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="wrap top">
+  <div class="mark">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+      <rect x="1" y="1" width="24" height="24" rx="5" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
+      <path d="M6 17 L10 12 L14 14 L20 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="20" cy="7" r="2" fill="currentColor"/>
+    </svg>
+    QuantEra Research Lab
+  </div>
+  <nav aria-label="Page">
+    <a href="#explorer" class="opt">Architecture</a>
+    <a href="#building">What we're building</a>
+    <a href="#gaps" class="opt">Known gaps</a>
+    <a href="#run">Run it</a>
+    <a href="https://github.com/karan-patel11/quantera-ai">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap thesis">
+    <h1>Python computes every number. The model only narrates, and every draft it writes is checked.</h1>
+    <p class="measure">QuantEra turns a ticker into a research brief. Ratios, indicators, news tone and cross-lens disagreements are calculated in code. A language model writes the brief inside a fence of grounding checks, and a template replaces it when it strays. The map below is drawn from the source code, so dashed parts are not built yet; what comes next is laid out under What we're building.</p>
+    <div class="audit-line" id="audit-line">Loading the audited inventory…</div>
+  </div>
+
+  <div class="wrap" id="explorer">
+    <div class="instrument">
+      <div class="bar">
+        <div class="tabs" role="tablist" aria-label="Map view">
+          <button class="tab" role="tab" id="tab-system" aria-selected="true" aria-controls="stage" data-view="system">System map</button>
+          <button class="tab" role="tab" id="tab-lenses" aria-selected="false" aria-controls="stage" data-view="lenses">Lenses</button>
+          <button class="tab" role="tab" id="tab-walk" aria-selected="false" aria-controls="stage" data-view="walk">Walkthrough</button>
+        </div>
+        <div class="shows" role="group" aria-label="Show statuses">
+          <label class="toggle"><input type="checkbox" id="show-implemented" checked><span class="dot implemented" aria-hidden="true"></span>Implemented</label>
+          <label class="toggle"><input type="checkbox" id="show-partial" checked><span class="dot partial" aria-hidden="true"></span>Partial</label>
+          <label class="toggle"><input type="checkbox" id="show-planned" checked><span class="dot planned" aria-hidden="true"></span>Planned</label>
+        </div>
+        <div class="search" role="search">
+          <label for="q" class="sr">Find a component</label>
+          <input id="q" type="search" placeholder="Find a component, file or library" autocomplete="off" aria-controls="search-results">
+          <div class="results" id="search-results" hidden></div>
+        </div>
+      </div>
+
+      <div class="chips" id="layer-chips" role="group" aria-label="Focus a layer"><span class="lbl">Focus</span></div>
+
+      <div class="stage" id="stage" tabindex="0" role="application" aria-roledescription="architecture map" aria-label="Architecture map. Arrow keys move between components, Escape clears, plus and minus zoom, 0 fits." aria-describedby="hint">
+        <div id="cy"></div>
+        <div class="zoom">
+          <button class="icon-btn" id="zoom-out" aria-label="Zoom out">−</button>
+          <button class="icon-btn" id="zoom-in" aria-label="Zoom in">+</button>
+          <button class="icon-btn" id="fit">Fit</button>
+          <button class="icon-btn" id="reset">Reset</button>
+        </div>
+        <div class="canvas-msg" id="canvas-msg" hidden></div>
+        <div class="view-note" id="view-note"></div>
+        <aside class="inspector" id="inspector" aria-live="polite" aria-label="Component details" hidden></aside>
+      </div>
+
+      <div class="legend" id="legend">
+        <span class="it"><svg width="30" height="16" aria-hidden="true"><path d="M3 3 Q15 0 27 3 L27 13 Q15 16 3 13 Z" fill="none" stroke="var(--ink-2)" stroke-width="1.3"/></svg>Source or storage</span>
+        <span class="it"><svg width="30" height="16" aria-hidden="true"><rect x="2" y="2" width="26" height="12" fill="none" stroke="var(--ink-2)" stroke-width="1.3"/></svg>Computation</span>
+        <span class="it"><svg width="30" height="16" aria-hidden="true"><rect x="2" y="2" width="26" height="12" rx="5" fill="var(--panel-2)" stroke="var(--model)" stroke-width="1.3"/></svg>Model call</span>
+        <span class="it"><svg width="30" height="16" aria-hidden="true"><path d="M6 2 H24 L28 6 V10 L24 14 H6 L2 10 V6 Z" fill="none" stroke="var(--ink-2)" stroke-width="1.3"/></svg>Guard or fallback</span>
+        <span class="it"><svg width="30" height="16" aria-hidden="true"><line x1="2" y1="8" x2="28" y2="8" stroke="var(--fail)" stroke-width="1.6" stroke-dasharray="3 3"/></svg>Taken when a check fails</span>
+        <span class="it"><svg width="30" height="16" aria-hidden="true"><line x1="2" y1="8" x2="28" y2="8" stroke="var(--plan)" stroke-width="1.6" stroke-dasharray="6 4"/></svg>Planned connection</span>
+        <span class="hint" id="hint">Select a component to see its inputs, outputs, source files and what happens when it fails. With the map focused, arrow keys step through components.</span>
+      </div>
+    </div>
+  </div>
+
+  <section class="below" id="building" aria-labelledby="building-title">
+    <div class="wrap">
+      <h2 id="building-title">What we're building</h2>
+      <p class="vision-sum" id="vision-sum"></p>
+      <div class="principles" id="principles"></div>
+      <h3 class="stages-head">The roadmap, in order</h3>
+      <p class="stages-note">Each step builds on the one before it. The components it adds or fixes are linked; select one to see it on the map.</p>
+      <ol class="stages" id="stages"></ol>
+    </div>
+  </section>
+
+  <section class="below" aria-labelledby="index-title">
+    <div class="wrap">
+      <h2 id="index-title">Every component, by layer</h2>
+      <p class="lede measure">The same inventory as the map. Selecting one opens it there.</p>
+      <div class="index" id="index"></div>
+    </div>
+  </section>
+
+  <section class="below" id="gaps" aria-labelledby="gaps-title">
+    <div class="wrap">
+      <h2 id="gaps-title">Known gaps</h2>
+      <p class="lede measure">Found while reading the code at the audited commit. Each is also listed under the component it affects, and each maps to a step in the roadmap above.</p>
+      <div class="gaps">
+        <div class="gap">
+          <h3>Orchestration is one sequential Python function.</h3>
+          <p>The README describes a LangGraph migration in development, but there is no dependency or import yet. <span class="fix">The lenses sit behind synthesize(), so the orchestrator can be replaced without touching them.</span></p>
+        </div>
+        <div class="gap">
+          <h3>5 of 14 fundamentals metrics can never produce a value.</h3>
+          <p>EV/EBITDA and interest coverage need fields the contract does not have. The three growth metrics are hard-coded unavailable, which also leaves the valuation-versus-growth disagreement rule unable to fire. <span class="fix">Multi-year statements are already fetched, so growth is the cheapest fix.</span></p>
+        </div>
+        <div class="gap">
+          <h3>Grounding checks values, not claims.</h3>
+          <p>A number in the brief passes if it appears anywhere in the model's input, even attached to the wrong metric. <span class="fix">Planned: bind each generated number to the field it describes.</span></p>
+        </div>
+        <div class="gap">
+          <h3>Tests pass locally, but nothing runs them automatically.</h3>
+          <p>90 unit tests passed during this audit. The repository's only workflow deploys this page. <span class="fix">A pytest job on pull requests is a few lines of configuration.</span></p>
+        </div>
+        <div class="gap">
+          <h3>Data is not point-in-time.</h3>
+          <p>Statements carry fiscal period-end dates, not filing dates. That is fine for current research and wrong for any backtest. <span class="fix">Planned: EDGAR company facts, which record when each figure was filed.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="below" id="run" aria-labelledby="run-title">
+    <div class="wrap run">
+      <div>
+        <h2 id="run-title">Run it</h2>
+        <p class="measure">The code this map describes is kept on the <code>archive/v0-code</code> branch. It needs Python 3.11 or newer. Unit tests use mock sources and need no keys. A real request needs a Finnhub key for news and a Groq key for the model; without them, news returns no data and the brief falls back to the template.</p>
+      </div>
+      <pre><span class="c"># get the code</span>
+git clone -b archive/v0-code https://github.com/karan-patel11/quantera-ai
+cd quantera-ai
+python3 -m pip install -e ".[dev]"
+
+<span class="c"># .env</span>
+NEWS_API_KEY=your_finnhub_key
+GROQ_API_KEY=your_groq_key
+
+<span class="c"># API and UI on http://127.0.0.1:8000</span>
+uvicorn quantera.server.app:app
+
+<span class="c"># unit tests (live integration tests excluded)</span>
+python3 -m pytest</pre>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Research and education only. QuantEra makes no buy, sell or hold recommendations and is not financial advice.</span>
+    <span id="foot-audit">Built by Karan Patel</span>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // Source links are permalinks to the audited commit, which is also kept on the archive/v0-code branch.
+  var REPO_BLOB = "https://github.com/karan-patel11/quantera-ai/blob/ea6e9ad1903ac9e35247f67df031e126343d3f70/";
+  var REPO_COMMIT = "https://github.com/karan-patel11/quantera-ai/tree/ea6e9ad1903ac9e35247f67df031e126343d3f70";
+  var COL_W = 200, ROW_H = 62, NODE_W = 164, NODE_H = 44, DRAWER_W = 380;
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  var wideQuery = window.matchMedia("(min-width: 981px)");
+
+  var M = null, byId = {}, cy = null;
+  var view = "system", selectedId = null, walkIndex = 0;
+  var focusedLayers = new Set();
+
+  var $ = function (id) { return document.getElementById(id); };
+  function el(tag, attrs, children) {
+    var n = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === "text") n.textContent = attrs[k];
+      else if (k === "class") n.className = attrs[k];
+      else n.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    return n;
+  }
+  function dot(status) { return el("span", { class: "dot " + status, "aria-hidden": "true" }); }
+  function layerOf(n) { return M.layers.find(function (l) { return l.id === n.layer; }); }
+
+  // ---------- load ----------
+  fetch("architecture.json", { cache: "no-cache" })
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(init)
+    .catch(function (err) {
+      var msg = $("canvas-msg");
+      msg.hidden = false;
+      msg.textContent = "The architecture manifest could not be loaded (" + err.message + "). Serve the site folder over HTTP, for example: python3 -m http.server --directory site";
+      $("audit-line").textContent = "Inventory unavailable.";
+    });
+
+  function init(manifest) {
+    M = manifest;
+    M.nodes.forEach(function (n) { byId[n.id] = n; });
+    renderAuditLine();
+    renderChips();
+    renderIndex();
+    renderVision();
+    if (typeof window.cytoscape !== "function") {
+      var msg = $("canvas-msg");
+      msg.hidden = false;
+      msg.textContent = "The graph library did not load, so the map is unavailable. The full inventory is listed below.";
+      return;
+    }
+    buildGraph();
+    bindControls();
+    var hash = (location.hash || "").replace("#", "");
+    if (hash === "walkthrough") setView("walk");
+    else if (hash === "lenses") setView("lenses");
+    else if (byId[hash]) select(hash);
+  }
+
+  function counts(list) {
+    var c = { implemented: 0, partial: 0, planned: 0 };
+    list.forEach(function (n) { c[n.status]++; });
+    return c;
+  }
+  function renderAuditLine() {
+    var c = counts(M.nodes), line = $("audit-line");
+    line.textContent = "";
+    line.appendChild(el("span", null, [el("strong", { text: String(M.nodes.length) }), " components audited at commit ", el("a", { href: REPO_COMMIT, target: "_blank", rel: "noopener" }, [el("code", { text: M.meta.audited_commit })])]));
+    ["implemented", "partial", "planned"].forEach(function (s) {
+      line.appendChild(el("span", { class: "st" }, [dot(s), el("strong", { text: String(c[s]) }), " " + M.statuses[s].label.toLowerCase()]));
+    });
+    $("foot-audit").textContent = "Built by Karan Patel. Architecture audited " + M.meta.audited_on + ".";
+  }
+
+  // ---------- canvas styling from theme tokens ----------
+  function tok(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function mix(a, b, w) {
+    function p(h) { h = h.replace("#", ""); return [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); }); }
+    var x = p(a), y = p(b);
+    return "#" + x.map(function (v, i) { return Math.round(v * (1 - w) + y[i] * w).toString(16).padStart(2, "0"); }).join("");
+  }
+  var SHAPES = {
+    source: "barrel", storage: "barrel", data: "bottom-round-rectangle", compute: "rectangle",
+    llm: "round-rectangle", guard: "cut-rectangle", orchestration: "round-octagon",
+    delivery: "round-tag", eval: "rectangle"
+  };
+  function stylesheet() {
+    var t = {
+      ground: tok("--ground"), panel: tok("--panel"), panel2: tok("--panel-2"), rule: tok("--rule"),
+      ink: tok("--ink"), ink2: tok("--ink-2"), select: tok("--select"), ok: tok("--ok"),
+      part: tok("--part"), plan: tok("--plan"), model: tok("--model"), fail: tok("--fail")
+    };
+    var font = getComputedStyle(document.body).fontFamily;
+    var partFill = mix(t.panel2, t.part, 0.22);
+    return [
+      { selector: "node", style: {
+        "font-family": font, "font-size": 12, "color": t.ink, "label": "data(display)",
+        "text-wrap": "wrap", "text-max-width": NODE_W - 20, "text-valign": "center", "text-halign": "center",
+        "line-height": 1.2, "width": NODE_W, "height": NODE_H, "background-color": t.panel2,
+        "border-width": 1.5, "border-color": t.ok,
+        "shape": function (n) { return SHAPES[n.data("kind")] || "rectangle"; }
+      }},
+      { selector: "node[kind = 'llm']", style: { "background-color": mix(t.panel2, t.model, 0.2) } },
+      { selector: "node[kind = 'eval']", style: { "border-style": "double", "border-width": 3.5 } },
+      { selector: "node[status = 'partial']", style: {
+        "border-color": t.part, "background-fill": "linear-gradient", "background-gradient-direction": "to-right",
+        "background-gradient-stop-colors": [partFill, partFill, t.panel2, t.panel2].join(" "),
+        "background-gradient-stop-positions": "0 50 50 100"
+      }},
+      { selector: "node[status = 'planned']", style: { "border-color": t.plan, "border-style": "dashed", "background-color": t.panel, "color": t.ink2 } },
+      { selector: "node.layer", style: {
+        "label": "data(display)", "shape": "round-rectangle", "background-color": t.ground, "background-opacity": 0.6,
+        "border-width": 0, "text-valign": "top", "text-halign": "center", "text-margin-y": -8,
+        "font-size": 13, "font-weight": 600, "color": t.ink2, "padding": 14, "events": "no"
+      }},
+      { selector: "node.layer.boundary", style: {
+        "background-color": t.model, "background-opacity": 0.08, "border-width": 1.5,
+        "border-style": "dashed", "border-color": t.model, "color": t.model
+      }},
+      { selector: "edge", style: {
+        "width": 1.3, "line-color": mix(t.rule, t.ink2, 0.25), "target-arrow-color": mix(t.rule, t.ink2, 0.25),
+        "target-arrow-shape": "triangle", "arrow-scale": 0.75, "curve-style": "bezier",
+        "font-family": font, "font-size": 11, "color": t.ink, "text-background-color": t.panel,
+        "text-background-opacity": 1, "text-background-padding": 3, "text-background-shape": "round-rectangle",
+        "label": "", "text-rotation": "none"
+      }},
+      { selector: "edge[style = 'uses']", style: { "line-style": "dotted", "target-arrow-shape": "none", "line-color": t.model, "opacity": 0.5 } },
+      { selector: "edge[style = 'planned']", style: { "line-style": "dashed", "line-dash-pattern": [6, 4], "line-color": t.plan, "target-arrow-color": t.plan, "opacity": 0.7 } },
+      { selector: "edge[style = 'fail']", style: { "line-style": "dashed", "line-dash-pattern": [3, 3], "line-color": t.fail, "target-arrow-color": t.fail } },
+      { selector: ".dim", style: { "opacity": 0.12 } },
+      { selector: "node.layer.dim", style: { "opacity": 0.4 } },
+      { selector: "edge.hl", style: { "width": 2.2, "line-color": t.select, "target-arrow-color": t.select, "opacity": 1, "label": "data(label)", "z-index": 20 } },
+      { selector: "edge.hl[style = 'fail']", style: { "line-color": t.fail, "target-arrow-color": t.fail } },
+      { selector: "edge.hl[style = 'planned']", style: { "line-color": t.plan, "target-arrow-color": t.plan } },
+      { selector: "node.sel, node.match", style: { "border-width": 3, "border-color": t.select, "z-index": 30 } },
+      { selector: "node:active", style: { "overlay-opacity": 0 } }
+    ];
+  }
+
+  // ---------- element sets ----------
+  function displayLabel(n) { return n.status === "implemented" ? n.label : n.label + "\n" + n.status; }
+  function nodeData(n, parent) {
+    var d = { id: n.id, display: displayLabel(n), kind: n.kind, status: n.status, layerId: n.layer };
+    if (parent) d.parent = parent;
+    return d;
+  }
+  function edgeData(e, id) {
+    return { group: "edges", data: { id: id, source: e.source, target: e.target, label: e.label || "", style: e.style || "flow" } };
+  }
+  function systemElements() {
+    var perLayer = {};
+    M.nodes.forEach(function (n) { (perLayer[n.layer] = perLayer[n.layer] || []).push(n); });
+    var columns = M.layers.filter(function (l) { return l.band !== "bottom"; });
+    var maxRows = Math.max.apply(null, columns.map(function (l) { return (perLayer[l.id] || []).length; }));
+    var els = [];
+    M.layers.forEach(function (l) {
+      els.push({ group: "nodes", data: { id: "layer_" + l.id, display: l.label, layerId: l.id }, classes: "layer" + (l.boundary ? " boundary" : "") });
+      var list = perLayer[l.id] || [];
+      var offset = (maxRows - list.length) / 2;
+      list.forEach(function (n, i) {
+        var pos = l.band === "bottom"
+          ? { x: (l.column + i) * COL_W, y: maxRows * ROW_H + 64 }
+          : { x: l.column * COL_W, y: (i + offset) * ROW_H };
+        els.push({ group: "nodes", data: nodeData(n, "layer_" + l.id), position: pos });
+      });
+    });
+    M.edges.forEach(function (e, i) { els.push(edgeData(e, "e" + i)); });
+    return els;
+  }
+  function lensElements() {
+    var av = M.agentView, els = [];
+    Object.keys(av.positions).forEach(function (id) {
+      var p = av.positions[id];
+      els.push({ group: "nodes", data: nodeData(byId[id], null), position: { x: p[0] * 196, y: p[1] * 64 } });
+    });
+    av.edges.forEach(function (e, i) { els.push(edgeData(e, "a" + i)); });
+    return els;
+  }
+
+  // ---------- graph & viewport ----------
+  function buildGraph() {
+    cy = cytoscape({
+      container: $("cy"), elements: systemElements(), layout: { name: "preset" }, style: stylesheet(),
+      minZoom: 0.25, maxZoom: 2.2, boxSelectionEnabled: false, autoungrabify: true, autounselectify: true
+    });
+    cy.ready(function () { initialView(); });
+    cy.on("tap", "node", function (evt) { if (!evt.target.hasClass("layer")) select(evt.target.id()); });
+    cy.on("tap", function (evt) { if (evt.target === cy) clearSelection(); });
+    cy.on("mouseover", "node", function (evt) { if (!evt.target.hasClass("layer")) $("cy").style.cursor = "pointer"; });
+    cy.on("mouseout", "node", function () { $("cy").style.cursor = ""; });
+    var refresh = function () { if (cy) cy.style(stylesheet()); };
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", refresh);
+    new MutationObserver(refresh).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
+    window.addEventListener("resize", function () { cy.resize(); });
+  }
+  function drawerOpen() { return !$("inspector").hidden && wideQuery.matches; }
+  // Fit a set of elements into the visible part of the canvas (left of the drawer when it is open).
+  function frame(eles, pad, maxZ, animate) {
+    if (!eles || eles.empty()) return;
+    var bb = eles.boundingBox();
+    var w = cy.width() - (drawerOpen() ? DRAWER_W : 0) - pad * 2;
+    var h = cy.height() - pad * 2;
+    var z = Math.max(cy.minZoom(), Math.min(maxZ || 1.25, w / bb.w, h / bb.h));
+    var pan = { x: pad + (w - bb.w * z) / 2 - bb.x1 * z, y: pad + (h - bb.h * z) / 2 - bb.y1 * z };
+    cy.stop();
+    if (animate === false || reduceMotion.matches) { cy.viewport({ zoom: z, pan: pan }); return; }
+    cy.animate({ zoom: z, pan: pan }, { duration: 340, easing: "ease-in-out-cubic" });
+  }
+  function initialView() {
+    var all = cy.elements(":visible");
+    if (wideQuery.matches || view !== "system") { frame(all, 28, 1.1, false); return; }
+    // Narrow screens: start readable at the left edge rather than shrinking 50 boxes to fit.
+    var first = cy.nodes().filter(function (n) { return n.data("layerId") === "sources" || n.data("layerId") === "ingest"; });
+    frame(first, 48, 0.95, false);
+  }
+
+  function setView(next) {
+    view = next;
+    document.querySelectorAll(".tab").forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.view === next)); });
+    selectedId = null;
+    focusedLayers.clear(); syncChips();
+    cy.elements().remove();
+    cy.add(next === "lenses" ? lensElements() : systemElements());
+    applyStatusFilter();
+    $("layer-chips").hidden = next !== "system";
+    var note = $("view-note"); note.textContent = "";
+    if (next === "lenses") note.appendChild(el("span", { text: M.agentView.note }));
+    try { history.replaceState(null, "", next === "walk" ? "#walkthrough" : next === "lenses" ? "#lenses" : location.pathname); } catch (e) {}
+    if (next === "walk") { walkIndex = 0; renderWalk(); }
+    else { closeDrawer(); initialView(); }
+  }
+
+  // ---------- selection ----------
+  function select(id) {
+    if (!cy || !byId[id]) return;
+    if (view === "walk") setView("system");
+    var n = cy.getElementById(id);
+    if (n.empty()) { setView("system"); n = cy.getElementById(id); }
+    if (!n.visible()) { $("show-" + byId[id].status).checked = true; applyStatusFilter(); }
+    selectedId = id;
+    var hood = n.closedNeighborhood().filter(":visible");
+    cy.elements().removeClass("hl sel match").addClass("dim");
+    hood.removeClass("dim").addClass("hl");
+    n.removeClass("hl").addClass("sel");
+    hood.nodes().parents().removeClass("dim");
+    renderNode(byId[id]);
+    frame(hood.nodes(), 56, 1.15);
+  }
+  function clearSelection() {
+    selectedId = null;
+    cy.elements().removeClass("dim hl sel match");
+    applyLayerFocus();
+    if (view === "walk") renderWalk(); else closeDrawer();
+  }
+  function openDrawer() { $("inspector").hidden = false; }
+  function closeDrawer() { $("inspector").hidden = true; }
+
+  // ---------- inspector ----------
+  function inspectorHead(title) {
+    var box = $("inspector");
+    box.textContent = "";
+    var close = el("button", { class: "close", type: "button", "aria-label": "Close details", text: "×" });
+    close.addEventListener("click", function () { if (view === "walk") setView("system"); else clearSelection(); $("stage").focus(); });
+    box.appendChild(el("div", { class: "insp-head" }, [el("h2", { text: title }), close]));
+    return box;
+  }
+  function renderNode(n) {
+    var box = inspectorHead(n.label), layer = layerOf(n);
+    box.appendChild(el("div", { class: "meta" }, [
+      el("span", { class: "pill " + n.status }, [dot(n.status), M.statuses[n.status].label]),
+      el("span", { text: M.kinds[n.kind] }),
+      layer && layer.label !== M.kinds[n.kind] ? el("span", { text: layer.label }) : null
+    ]));
+    box.appendChild(el("p", { text: n.summary }));
+    if (n.status !== "implemented") box.appendChild(el("p", { class: "muted", text: M.statuses[n.status].note }));
+    list("What it does", n.does);
+    list("Inputs", n.inputs);
+    list("Outputs", n.outputs);
+    if (n.failure) { box.appendChild(el("h3", { text: "When it fails" })); box.appendChild(el("p", { text: n.failure })); }
+    list("Limitations", n.limits, "limits");
+    if (n.tech && n.tech.length) { box.appendChild(el("h3", { text: "Built with" })); box.appendChild(el("p", { text: n.tech.join(", ") })); }
+    if (n.files && n.files.length) {
+      box.appendChild(el("h3", { text: "Source" }));
+      var ul = el("ul", { class: "files" });
+      n.files.forEach(function (f) { ul.appendChild(el("li", null, [el("a", { href: REPO_BLOB + f, target: "_blank", rel: "noopener", text: f })])); });
+      box.appendChild(ul);
+    }
+    links("Receives from", M.edges.filter(function (e) { return e.target === n.id; }), "source");
+    links("Sends to", M.edges.filter(function (e) { return e.source === n.id; }), "target");
+    openDrawer();
+    box.scrollTop = 0;
+
+    function list(title, items, cls) {
+      if (!items || !items.length) return;
+      box.appendChild(el("h3", { text: title }));
+      var u = el("ul", cls ? { class: cls } : null);
+      items.forEach(function (i) { u.appendChild(el("li", { text: i })); });
+      box.appendChild(u);
+    }
+    function links(title, edges, end) {
+      if (!edges.length) return;
+      box.appendChild(el("h3", { text: title }));
+      var u = el("ul", { class: "links" });
+      edges.forEach(function (e) {
+        var other = byId[e[end]];
+        var b = el("button", { type: "button" }, [dot(other.status), el("span", null, [el("span", { class: "nm", text: other.label }), e.label ? el("span", { class: "via", text: "  " + e.label }) : null])]);
+        b.addEventListener("click", function () { select(other.id); });
+        u.appendChild(el("li", null, [b]));
+      });
+      box.appendChild(u);
+    }
+  }
+
+  // ---------- walkthrough ----------
+  function renderWalk() {
+    var steps = M.walkthrough.steps, s = steps[walkIndex];
+    var box = inspectorHead(s.title);
+    var wrap = el("div", { class: "walk" });
+    wrap.appendChild(el("div", { class: "step-count" }, [el("code", { text: M.walkthrough.title }), ", step " + (walkIndex + 1) + " of " + steps.length]));
+    wrap.appendChild(el("p", { text: s.body }));
+    var nav = el("div", { class: "nav" });
+    var prev = el("button", { class: "icon-btn", type: "button", text: "Previous" });
+    var last = walkIndex === steps.length - 1;
+    var next = el("button", { class: "icon-btn", type: "button", text: last ? "Start over" : "Next step" });
+    prev.disabled = walkIndex === 0;
+    prev.addEventListener("click", function () { walkIndex = Math.max(0, walkIndex - 1); renderWalk(); $("inspector").querySelector(".nav .icon-btn").focus(); });
+    next.addEventListener("click", function () { walkIndex = last ? 0 : walkIndex + 1; renderWalk(); $("inspector").querySelectorAll(".nav .icon-btn")[1].focus(); });
+    nav.appendChild(prev); nav.appendChild(next);
+    wrap.appendChild(nav);
+    var ol = el("ol");
+    steps.forEach(function (st, i) {
+      var b = el("button", { type: "button", text: st.title });
+      if (i === walkIndex) b.setAttribute("aria-current", "step");
+      b.addEventListener("click", function () { walkIndex = i; renderWalk(); });
+      ol.appendChild(el("li", null, [b]));
+    });
+    wrap.appendChild(ol);
+    wrap.appendChild(el("p", { class: "muted", text: M.walkthrough.note }));
+    box.appendChild(wrap);
+    openDrawer();
+
+    cy.elements().removeClass("hl sel match").addClass("dim");
+    var nodes = cy.collection();
+    s.nodes.forEach(function (id) { nodes = nodes.union(cy.getElementById(id)); });
+    nodes.removeClass("dim").addClass("hl");
+    nodes.parents().removeClass("dim");
+    s.edges.forEach(function (pair) {
+      cy.edges().filter(function (e) { return e.data("source") === pair[0] && e.data("target") === pair[1]; }).removeClass("dim").addClass("hl");
+    });
+    frame(nodes, 70, 1.15);
+  }
+
+  // ---------- filters ----------
+  function renderChips() {
+    var box = $("layer-chips");
+    M.layers.forEach(function (l) {
+      var b = el("button", { type: "button", class: "chip" + (l.boundary ? " model" : ""), "aria-pressed": "false", "data-layer": l.id, text: l.label });
+      b.addEventListener("click", function () {
+        if (focusedLayers.has(l.id)) focusedLayers.delete(l.id); else focusedLayers.add(l.id);
+        syncChips();
+        selectedId = null; closeDrawer();
+        cy.elements().removeClass("hl sel match");
+        applyLayerFocus();
+        var eles = focusedLayers.size
+          ? cy.nodes().filter(function (n) { return !n.hasClass("layer") && focusedLayers.has(n.data("layerId")) && n.visible(); })
+          : cy.elements(":visible");
+        frame(eles, 40, 1.1);
+      });
+      box.appendChild(b);
+    });
+  }
+  function syncChips() {
+    document.querySelectorAll("#layer-chips .chip").forEach(function (c) { c.setAttribute("aria-pressed", String(focusedLayers.has(c.dataset.layer))); });
+  }
+  function applyLayerFocus() {
+    if (!cy) return;
+    cy.elements().removeClass("dim");
+    if (!focusedLayers.size) return;
+    cy.nodes().forEach(function (n) { if (!focusedLayers.has(n.data("layerId"))) n.addClass("dim"); });
+    cy.edges().forEach(function (e) {
+      if (!focusedLayers.has(e.source().data("layerId")) && !focusedLayers.has(e.target().data("layerId"))) e.addClass("dim");
+    });
+  }
+  function applyStatusFilter() {
+    ["implemented", "partial", "planned"].forEach(function (s) {
+      cy.nodes("[status = '" + s + "']").style("display", $("show-" + s).checked ? "element" : "none");
+    });
+  }
+
+  // ---------- search ----------
+  function haystack(n) {
+    return [n.id, n.label, n.summary, (n.tech || []).join(" "), (n.files || []).join(" "), (n.does || []).join(" ")].join(" ").toLowerCase();
+  }
+  function runSearch(raw) {
+    var res = $("search-results"), q = raw.trim().toLowerCase();
+    res.textContent = "";
+    if (!q) {
+      res.hidden = true;
+      if (cy && !selectedId && view === "system") { cy.elements().removeClass("dim match"); applyLayerFocus(); }
+      return;
+    }
+    var terms = q.split(/\s+/);
+    var hits = M.nodes.filter(function (n) { var h = haystack(n); return terms.every(function (w) { return h.indexOf(w) !== -1; }); });
+    hits.sort(function (a, b) { return (b.label.toLowerCase().indexOf(q) !== -1) - (a.label.toLowerCase().indexOf(q) !== -1); });
+    if (!hits.length) res.appendChild(el("div", { class: "none", text: "No component matches. Try a file name, a library or a layer." }));
+    hits.slice(0, 7).forEach(function (n) {
+      var b = el("button", { type: "button" }, [dot(n.status), el("span", { text: n.label }), el("small", { text: layerOf(n).label })]);
+      b.addEventListener("click", function () { res.hidden = true; $("q").value = ""; select(n.id); });
+      res.appendChild(b);
+    });
+    res.hidden = false;
+    if (cy && view === "system" && !selectedId) {
+      cy.elements().removeClass("hl sel match").addClass("dim");
+      hits.forEach(function (n) { var c = cy.getElementById(n.id); c.removeClass("dim").addClass("match"); c.parents().removeClass("dim"); });
+    }
+  }
+
+  // ---------- index ----------
+  function renderIndex() {
+    var box = $("index");
+    M.layers.forEach(function (l) {
+      var items = M.nodes.filter(function (n) { return n.layer === l.id; });
+      var c = counts(items);
+      var col = el("div");
+      col.appendChild(el("h3", { class: l.boundary ? "model" : "" }, [l.label, el("small", { text: (c.implemented + c.partial) + " of " + items.length + " built" })]));
+      var ul = el("ul");
+      items.forEach(function (n) {
+        var b = el("button", { type: "button", class: n.status }, [dot(n.status), el("span", { class: "nm", text: n.label }), el("span", { class: "sr", text: ", " + M.statuses[n.status].label })]);
+        b.addEventListener("click", function () {
+          $("explorer").scrollIntoView({ behavior: reduceMotion.matches ? "auto" : "smooth", block: "start" });
+          select(n.id);
+        });
+        ul.appendChild(el("li", null, [b]));
+      });
+      col.appendChild(ul);
+      box.appendChild(col);
+    });
+  }
+
+  // ---------- what we're building ----------
+  function renderVision() {
+    var v = M.vision;
+    if (!v) { $("building").hidden = true; return; }
+    $("vision-sum").textContent = v.summary;
+    var pr = $("principles");
+    v.principles.forEach(function (p) {
+      pr.appendChild(el("div", null, [el("h3", { text: p.title }), el("p", { text: p.body })]));
+    });
+    var ol = $("stages");
+    v.stages.forEach(function (s) {
+      var refs = el("div", { class: "refs" });
+      s.refs.forEach(function (id) {
+        var n = byId[id];
+        var b = el("button", { type: "button", class: "ref" }, [dot(n.status), n.label, el("span", { class: "sr", text: ", " + M.statuses[n.status].label })]);
+        b.addEventListener("click", function () {
+          $("explorer").scrollIntoView({ behavior: reduceMotion.matches ? "auto" : "smooth", block: "start" });
+          select(id);
+        });
+        refs.appendChild(b);
+      });
+      ol.appendChild(el("li", null, [el("div", null, [el("h3", { text: s.title }), el("p", { text: s.body }), refs])]));
+    });
+  }
+
+  // ---------- controls ----------
+  function bindControls() {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+    tabs.forEach(function (t, i) {
+      t.addEventListener("click", function () { setView(t.dataset.view); });
+      t.addEventListener("keydown", function (e) {
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        e.preventDefault();
+        var n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+        n.focus(); setView(n.dataset.view);
+      });
+    });
+    ["implemented", "partial", "planned"].forEach(function (s) {
+      $("show-" + s).addEventListener("change", function () {
+        applyStatusFilter();
+        if (view === "walk") { renderWalk(); return; }
+        if (selectedId && !cy.getElementById(selectedId).visible()) clearSelection();
+        frame(cy.elements(":visible"), 28, 1.1);
+      });
+    });
+    $("zoom-in").addEventListener("click", function () { zoomBy(1.25); });
+    $("zoom-out").addEventListener("click", function () { zoomBy(0.8); });
+    $("fit").addEventListener("click", function () { frame(cy.elements(":visible"), 28, 1.1); });
+    $("reset").addEventListener("click", function () {
+      $("q").value = ""; $("search-results").hidden = true;
+      ["implemented", "partial", "planned"].forEach(function (s) { $("show-" + s).checked = true; });
+      setView("system");
+    });
+    var q = $("q");
+    q.addEventListener("input", function () { runSearch(q.value); });
+    q.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { var first = $("search-results").querySelector("button"); if (first) first.click(); }
+      if (e.key === "Escape") { q.value = ""; runSearch(""); }
+      if (e.key === "ArrowDown") { var b = $("search-results").querySelector("button"); if (b) { e.preventDefault(); b.focus(); } }
+    });
+    $("search-results").addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      var bs = Array.prototype.slice.call(this.querySelectorAll("button")), i = bs.indexOf(document.activeElement);
+      e.preventDefault();
+      if (e.key === "ArrowUp" && i <= 0) { q.focus(); return; }
+      (bs[i + (e.key === "ArrowDown" ? 1 : -1)] || bs[i]).focus();
+    });
+    document.addEventListener("click", function (e) { if (!e.target.closest(".search")) $("search-results").hidden = true; });
+
+    $("stage").addEventListener("keydown", function (e) {
+      if (e.target !== $("stage")) return;
+      var fwd = e.key === "ArrowRight" || e.key === "ArrowDown", back = e.key === "ArrowLeft" || e.key === "ArrowUp";
+      if (fwd || back) {
+        e.preventDefault();
+        if (view === "walk") {
+          walkIndex = Math.min(M.walkthrough.steps.length - 1, Math.max(0, walkIndex + (fwd ? 1 : -1)));
+          renderWalk(); return;
+        }
+        var order = cy.nodes().filter(function (n) { return !n.hasClass("layer") && n.visible(); }).map(function (n) { return n.id(); });
+        var i = order.indexOf(selectedId);
+        var next = i === -1 ? (fwd ? order[0] : order[order.length - 1]) : order[(i + (fwd ? 1 : -1) + order.length) % order.length];
+        select(next);
+      } else if (e.key === "Escape") { clearSelection(); }
+      else if (e.key === "+" || e.key === "=") { zoomBy(1.25); }
+      else if (e.key === "-") { zoomBy(0.8); }
+      else if (e.key === "0") { frame(cy.elements(":visible"), 28, 1.1); }
+    });
+  }
+  function zoomBy(f) {
+    var z = Math.min(cy.maxZoom(), Math.max(cy.minZoom(), cy.zoom() * f));
+    var c = { x: cy.width() / 2, y: cy.height() / 2 };
+    cy.stop();
+    if (reduceMotion.matches) cy.zoom({ level: z, renderedPosition: c });
+    else cy.animate({ zoom: { level: z, renderedPosition: c } }, { duration: 180 });
+  }
+})();
+</script>
+</body>
+</html>

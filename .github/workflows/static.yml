@@ -1,5 +1,5 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+# Deploys the architecture landing page in site/ to GitHub Pages
+name: Deploy landing page to Pages
 
 on:
   # Runs on pushes targeting the default branch
@@ -31,13 +31,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate architecture manifest
+        # fetch-depth 0 keeps the audited commit available, so cited source files are checked too
+        run: python3 scripts/validate_manifest.py
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          # Publish only the landing page, not the whole repository
+          path: 'site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
