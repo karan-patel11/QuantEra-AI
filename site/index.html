@@ -203,8 +203,6 @@ section.below .lede { color: var(--ink-2); margin: 0 0 26px; }
 .gap p { margin: 0; color: var(--ink-2); }
 .gap .fix { color: var(--ink); }
 
-.run { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
-.run p { color: var(--ink-2); margin: 0; }
 pre { margin: 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-family: var(--font-code); font-size: 0.86rem; line-height: 1.7; }
 pre .c { color: var(--ink-2); }
 
@@ -292,9 +290,8 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
 
   .stage { height: 500px; }
   .inspector { position: static; width: auto; border-left: 0; border-top: 1px solid var(--rule); box-shadow: none; max-height: none; }
-  .gap, .run { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .gap { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .principles { grid-template-columns: minmax(0, 1fr); gap: 18px; margin-bottom: 40px; }
-  .run { gap: 20px; }
   .search { margin-left: 0; max-width: none; flex-basis: 100%; }
 }
 @media (max-width: 560px) {
@@ -327,7 +324,6 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
     <a href="#explorer" class="opt">Architecture</a>
     <a href="#building">What we're building</a>
     <a href="#gaps" class="opt">Known gaps</a>
-    <a href="#run">Run it</a>
     <a href="https://github.com/karan-patel11/quantera-ai">GitHub</a>
   </nav>
 </header>
@@ -459,29 +455,6 @@ footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; g
           <p>Statements carry fiscal period-end dates, not filing dates. That is fine for current research and wrong for any backtest. <span class="fix">Planned: EDGAR company facts, which record when each figure was filed.</span></p>
         </div>
       </div>
-    </div>
-  </section>
-
-  <section class="below" id="run" aria-labelledby="run-title">
-    <div class="wrap run">
-      <div>
-        <h2 id="run-title">Run it</h2>
-        <p class="measure">The code this map describes is kept on the <code>archive/v0-code</code> branch. It needs Python 3.11 or newer. Unit tests use mock sources and need no keys. A real request needs a Finnhub key for news and a Groq key for the model; without them, news returns no data and the brief falls back to the template.</p>
-      </div>
-      <pre><span class="c"># get the code</span>
-git clone -b archive/v0-code https://github.com/karan-patel11/quantera-ai
-cd quantera-ai
-python3 -m pip install -e ".[dev]"
-
-<span class="c"># .env</span>
-NEWS_API_KEY=your_finnhub_key
-GROQ_API_KEY=your_groq_key
-
-<span class="c"># API and UI on http://127.0.0.1:8000</span>
-uvicorn quantera.server.app:app
-
-<span class="c"># unit tests (live integration tests excluded)</span>
-python3 -m pytest</pre>
     </div>
   </section>
 </main>
