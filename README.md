@@ -145,9 +145,11 @@ Rounded boxes are the only places a model is called. Everything else is ordinary
 This branch holds the landing page. The v0 application (FastAPI service, lenses, guards, validation harnesses and tests) is on [`archive/v0-code`](https://github.com/karan-patel11/QuantEra-AI/tree/archive/v0-code), at the commit the architecture page audits ([`ea6e9ad`](https://github.com/karan-patel11/QuantEra-AI/tree/ea6e9ad1903ac9e35247f67df031e126343d3f70)).
 
 ```
-site/index.html                 landing page (Cytoscape.js, no build step)
-site/architecture.json          single source of truth: components, request flow, roadmap
-scripts/validate_manifest.py    checks the manifest before every deploy
+site/index.html                 landing page: page template and logic inline, no build step
+site/dc-runtime.js              small renderer that turns the template into React elements
+site/vendor/                    pinned React 18.3.1 and Three.js r149 (3D scenes)
+site/architecture.json          component manifest: statuses and the source files each one cites
+scripts/validate_manifest.py    checks the manifest against the audited commit before every deploy
 .github/workflows/static.yml    validates, then publishes site/ to GitHub Pages
 ```
 
